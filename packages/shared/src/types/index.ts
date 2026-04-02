@@ -82,6 +82,44 @@ export interface Quote {
   updatedAt: Date;
 }
 
+// ─── Pricing Engine ───────────────────────────────────────────────────────────
+
+export type PropertyType = 'house' | 'flat_ground' | 'flat_upper' | 'commercial' | 'new_build';
+export type Urgency      = 'standard' | 'next_day' | 'same_day';
+
+export interface PricingInput {
+  jobKey:          string;
+  propertyType:    PropertyType;
+  urgency:         Urgency;
+  distanceMiles:   number;
+  complexityFlags: string[];  // e.g. ['older_property', 'no_existing_cable_run']
+  customerName:    string;
+  notes?:          string;
+  includeCallOut:  boolean;
+}
+
+export interface PricingContext {
+  rateCard:   RateCard;
+  jobLibrary: JobLibraryEntry[];
+}
+
+export interface LineItem {
+  description: string;
+  qty:         number;
+  unitPrice:   number;  // £
+  total:       number;  // £
+  sortOrder:   number;
+}
+
+export interface QuoteCalculation {
+  lineItems:     LineItem[];
+  subtotal:      number;  // £ ex VAT
+  vatAmount:     number;  // £
+  total:         number;  // £ inc VAT
+  depositAmount: number;  // £
+  warnings:      string[];
+}
+
 // ─── API Shapes ───────────────────────────────────────────────────────────────
 
 export interface ApiError {

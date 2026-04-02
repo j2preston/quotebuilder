@@ -4,10 +4,7 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "module": "Node16",
-    "moduleResolution": "Node16",
-    "paths": {
-      "@quotebot/shared": ["../../packages/shared/src/index.ts"]
-    }
+    "moduleResolution": "Node16"
   },
   "include": ["src/**/*"],
   "exclude": [
@@ -24,6 +21,8 @@
     "src/services/blob-storage.ts",
     "src/services/pdf.ts",
     "src/services/pricing.ts",
-    "src/services/transcription.ts"
+    "src/services/transcription.ts",
+    // test files are run directly via tsx, not compiled
+    "src/**/*.test.ts"
   ]
 }
