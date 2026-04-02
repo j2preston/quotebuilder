@@ -1,61 +1,43 @@
-// ─── Subscription Limits ──────────────────────────────────────────────────────
+// ─── Plan Limits ─────────────────────────────────────────────────────────────
 
-export const SUBSCRIPTION_LIMITS = {
-  free: {
-    quotesPerMonth: 3,
-    voiceTranscription: false,
-    whatsappBot: false,
-    pdfBranding: false,
+export const PLAN_LIMITS = {
+  trial: {
+    quotesPerMonth: 5,
+    jobLibraryEntries: 10,
+    whatsappBot: true,
+    pdfGeneration: true,
   },
   starter: {
-    quotesPerMonth: 30,
-    voiceTranscription: true,
+    quotesPerMonth: 50,
+    jobLibraryEntries: 50,
     whatsappBot: true,
-    pdfBranding: true,
+    pdfGeneration: true,
   },
   pro: {
     quotesPerMonth: Infinity,
-    voiceTranscription: true,
+    jobLibraryEntries: Infinity,
     whatsappBot: true,
-    pdfBranding: true,
+    pdfGeneration: true,
   },
 } as const;
 
-// ─── Pricing Defaults ─────────────────────────────────────────────────────────
+// ─── Defaults ─────────────────────────────────────────────────────────────────
 
-export const DEFAULT_LABOUR_RATE_PENCE = 4500; // £45/hr
-export const DEFAULT_MARKUP_PCT = 20;
-export const DEFAULT_VAT_RATE = 20;
-export const DEFAULT_QUOTE_VALIDITY_DAYS = 30;
-export const DEFAULT_PAYMENT_TERMS_DAYS = 14;
+export const DEFAULT_VAT_RATE = 0.20;
+export const DEFAULT_LABOUR_RATE = 45;        // £/hr
+export const DEFAULT_MARKUP_PERCENT = 20;
+export const DEFAULT_DEPOSIT_PERCENT = 25;
+export const DEFAULT_CALL_OUT_FEE = 0;
+export const DEFAULT_TRAVEL_RATE_PER_MILE = 0.45;
 
-// ─── Job Types ────────────────────────────────────────────────────────────────
-
-export const JOB_TYPE_LABELS: Record<string, string> = {
-  consumer_unit_replacement: 'Consumer Unit Replacement',
-  socket_installation: 'Socket Installation',
-  light_installation: 'Light Fitting / Installation',
-  rewire_full: 'Full Rewire',
-  rewire_partial: 'Partial Rewire',
-  ev_charger: 'EV Charger Installation',
-  outdoor_lighting: 'Outdoor / Security Lighting',
-  fault_finding: 'Fault Finding',
-  pat_testing: 'PAT Testing',
-  eicr: 'EICR (Electrical Installation Condition Report)',
-  other: 'Other',
-};
-
-// ─── Quote Number Prefix ──────────────────────────────────────────────────────
-
-export const QUOTE_NUMBER_PREFIX = 'QB';
-
-// ─── WhatsApp TTL ──────────────────────────────────────────────────────────────
+// ─── WhatsApp ─────────────────────────────────────────────────────────────────
 
 export const WHATSAPP_SESSION_TTL_SECONDS = 86400; // 24 hours
+export const WHATSAPP_SESSION_PREFIX = 'wa:session:';
 
-// ─── File Upload ──────────────────────────────────────────────────────────────
+// ─── File Limits ──────────────────────────────────────────────────────────────
 
-export const MAX_VOICE_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25MB
+export const MAX_AUDIO_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
 export const ALLOWED_AUDIO_MIME_TYPES = [
   'audio/mpeg',
   'audio/mp4',
@@ -65,7 +47,37 @@ export const ALLOWED_AUDIO_MIME_TYPES = [
   'audio/x-m4a',
 ];
 
-// ─── Units ─────────────────────────────────────────────────────────────────────
+// ─── UK Trades ────────────────────────────────────────────────────────────────
 
-export const LINE_ITEM_UNITS = ['each', 'hour', 'm', 'm²', 'lot', 'day'] as const;
-export type LineItemUnit = (typeof LINE_ITEM_UNITS)[number];
+export const UK_TRADES = [
+  'Electrician',
+  'Plumber',
+  'Gas Engineer',
+  'Builder',
+  'Carpenter',
+  'Painter & Decorator',
+  'Tiler',
+  'Roofer',
+  'HVAC Engineer',
+  'Handyman',
+  'Other',
+] as const;
+
+export type UKTrade = (typeof UK_TRADES)[number];
+
+// ─── Job Keys (default library for electricians) ──────────────────────────────
+
+export const DEFAULT_ELECTRICIAN_JOBS = [
+  { jobKey: 'consumer_unit_replacement', label: 'Consumer Unit Replacement', labourHours: 4 },
+  { jobKey: 'socket_single',             label: 'Single Socket Outlet',       labourHours: 0.5 },
+  { jobKey: 'socket_double',             label: 'Double Socket Outlet',       labourHours: 0.75 },
+  { jobKey: 'light_fitting',             label: 'Light Fitting Installation', labourHours: 0.5 },
+  { jobKey: 'downlight_single',          label: 'Downlight (per unit)',       labourHours: 0.5 },
+  { jobKey: 'rewire_full',               label: 'Full Rewire (3-bed house)',   labourHours: 40 },
+  { jobKey: 'rewire_partial',            label: 'Partial Rewire',             labourHours: 8 },
+  { jobKey: 'ev_charger',               label: 'EV Charger Installation',    labourHours: 3 },
+  { jobKey: 'outdoor_lighting',          label: 'Outdoor Security Lighting',  labourHours: 2 },
+  { jobKey: 'fault_finding',             label: 'Fault Finding',              labourHours: 1 },
+  { jobKey: 'eicr',                      label: 'EICR Inspection',            labourHours: 3 },
+  { jobKey: 'pat_testing',               label: 'PAT Testing (per item)',      labourHours: 0.1 },
+] as const;

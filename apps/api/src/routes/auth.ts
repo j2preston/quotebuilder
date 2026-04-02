@@ -1,180 +1,262 @@
+import 'dotenv/config';
 import type { FastifyInstance } from 'fastify';
 import bcrypt from 'bcrypt';
-import { createHash, randomBytes } from 'crypto';
+import { sign } from 'jsonwebtoken';
+import Stripe from 'stripe';
 import { z } from 'zod';
-import { v4 as uuid } from 'uuid';
-import type { RegisterRequest, LoginRequest, AuthResponse } from '@quotebot/shared';
+import type { Pool, PoolClient } from 'pg';
+import { authenticate } from '../middleware/auth.js';
+
+// ─── Stripe client (lazy — only used in register) ─────────────────────────────
+
+function getStripe(): Stripe {
+  return new Stripe(process.env.STRIPE_SECRET_KEY ?? '', { apiVersion: '2024-04-10' });
+}
+
+// ─── Zod schemas ─────────────────────────────────────────────────────────────
 
 const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  fullName: z.string().min(2),
-  businessName: z.string().min(2),
-  phone: z.string().min(10),
+  name:          z.string().min(1, 'Name is required'),
+  businessName:  z.string().min(1, 'Business name is required'),
+  trade:         z.string().min(1, 'Trade is required'),
+  location:      z.string().min(1, 'Location is required'),
+  email:         z.string().email('Valid email required'),
+  password:      z.string().min(8, 'Password must be at least 8 characters'),
+  labourRate:    z.number({ required_error: 'labourRate is required' }).positive('Labour rate must be positive'),
+  vatRegistered: z.boolean({ required_error: 'vatRegistered is required' }),
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string(),
+  email:    z.string().email('Valid email required'),
+  password: z.string().min(1, 'Password is required'),
 });
 
-export async function authRoutes(fastify: FastifyInstance) {
-  // POST /auth/register
-  fastify.post<{ Body: RegisterRequest }>('/register', async (req, reply) => {
-    const body = registerSchema.parse(req.body);
-    const { sql } = fastify;
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-    const existing = await sql`SELECT id FROM traders WHERE email = ${body.email}`;
-    if (existing.length > 0) {
-      return reply.code(409).send({ statusCode: 409, error: 'Conflict', message: 'Email already registered' });
-    }
-
-    const passwordHash = await bcrypt.hash(body.password, 12);
-
-    const [trader] = await sql`
-      INSERT INTO traders (email, password_hash, full_name, business_name, phone)
-      VALUES (${body.email}, ${passwordHash}, ${body.fullName}, ${body.businessName}, ${body.phone})
-      RETURNING id, email, full_name, business_name, phone, subscription_tier, subscription_status,
-                default_vat_rate, default_markup, default_labour_rate, quote_validity_days,
-                payment_terms_days, quotes_used_this_month, created_at, updated_at
-    `;
-
-    const accessToken = fastify.jwt.sign({ traderId: trader.id, email: trader.email });
-    const refreshToken = await issueRefreshToken(fastify, trader.id);
-
-    reply.code(201).send({
-      accessToken,
-      refreshToken,
-      trader: rowToTrader(trader),
-    } satisfies AuthResponse);
-  });
-
-  // POST /auth/login
-  fastify.post<{ Body: LoginRequest }>('/login', async (req, reply) => {
-    const body = loginSchema.parse(req.body);
-    const { sql } = fastify;
-
-    const [trader] = await sql`
-      SELECT id, email, password_hash, full_name, business_name, phone, subscription_tier,
-             subscription_status, default_vat_rate, default_markup, default_labour_rate,
-             quote_validity_days, payment_terms_days, quotes_used_this_month, vat_number,
-             logo_url, address_line1, address_line2, city, postcode, quote_footer_text,
-             whatsapp_number, stripe_customer_id, stripe_subscription_id, created_at, updated_at
-      FROM traders WHERE email = ${body.email}
-    `;
-
-    if (!trader || !(await bcrypt.compare(body.password, trader.password_hash))) {
-      return reply.code(401).send({ statusCode: 401, error: 'Unauthorized', message: 'Invalid credentials' });
-    }
-
-    const accessToken = fastify.jwt.sign({ traderId: trader.id, email: trader.email });
-    const refreshToken = await issueRefreshToken(fastify, trader.id);
-
-    reply.send({ accessToken, refreshToken, trader: rowToTrader(trader) } satisfies AuthResponse);
-  });
-
-  // POST /auth/refresh
-  fastify.post<{ Body: { refreshToken: string } }>('/refresh', async (req, reply) => {
-    const { refreshToken } = req.body ?? {};
-    if (!refreshToken) return reply.code(400).send({ message: 'refreshToken required' });
-
-    const tokenHash = createHash('sha256').update(refreshToken).digest('hex');
-    const { sql } = fastify;
-
-    const [row] = await sql`
-      SELECT rt.id, rt.trader_id, rt.expires_at,
-             t.email, t.full_name, t.business_name, t.phone, t.subscription_tier,
-             t.subscription_status, t.default_vat_rate, t.default_markup, t.default_labour_rate,
-             t.quote_validity_days, t.payment_terms_days, t.quotes_used_this_month
-      FROM refresh_tokens rt
-      JOIN traders t ON t.id = rt.trader_id
-      WHERE rt.token_hash = ${tokenHash} AND rt.expires_at > NOW()
-    `;
-
-    if (!row) {
-      return reply.code(401).send({ statusCode: 401, error: 'Unauthorized', message: 'Invalid or expired refresh token' });
-    }
-
-    // Rotate: delete old, issue new
-    await sql`DELETE FROM refresh_tokens WHERE id = ${row.id}`;
-    const newAccessToken = fastify.jwt.sign({ traderId: row.trader_id, email: row.email });
-    const newRefreshToken = await issueRefreshToken(fastify, row.trader_id);
-
-    reply.send({ accessToken: newAccessToken, refreshToken: newRefreshToken, trader: rowToTrader(row) });
-  });
-
-  // POST /auth/logout
-  fastify.post('/logout', {
-    preHandler: [fastify.authenticate],
-  }, async (req, reply) => {
-    const { body } = req as { body: { refreshToken?: string } };
-    if (body?.refreshToken) {
-      const tokenHash = createHash('sha256').update(body.refreshToken).digest('hex');
-      await fastify.sql`DELETE FROM refresh_tokens WHERE token_hash = ${tokenHash}`;
-    }
-    reply.code(204).send();
-  });
-
-  // GET /auth/me
-  fastify.get('/me', {
-    preHandler: [fastify.authenticate],
-  }, async (req, reply) => {
-    const { traderId } = req.user;
-    const [trader] = await fastify.sql`
-      SELECT id, email, full_name, business_name, phone, subscription_tier, subscription_status,
-             default_vat_rate, default_markup, default_labour_rate, quote_validity_days,
-             payment_terms_days, quotes_used_this_month, vat_number, logo_url, address_line1,
-             address_line2, city, postcode, quote_footer_text, whatsapp_number,
-             stripe_customer_id, stripe_subscription_id, created_at, updated_at
-      FROM traders WHERE id = ${traderId}
-    `;
-    if (!trader) return reply.code(404).send({ message: 'Trader not found' });
-    reply.send(rowToTrader(trader));
-  });
+/** Format a ZodError into the { error, fields } response shape. */
+function zodError(err: z.ZodError): { error: string; fields: Record<string, string> } {
+  const fields: Record<string, string> = {};
+  for (const issue of err.issues) {
+    const key = issue.path.join('.') || '_root';
+    fields[key] = issue.message;
+  }
+  return { error: 'Validation failed', fields };
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-async function issueRefreshToken(fastify: FastifyInstance, traderId: string): Promise<string> {
-  const token = randomBytes(40).toString('hex');
-  const tokenHash = createHash('sha256').update(token).digest('hex');
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
-
-  await fastify.sql`
-    INSERT INTO refresh_tokens (trader_id, token_hash, expires_at)
-    VALUES (${traderId}, ${tokenHash}, ${expiresAt})
-  `;
-
-  return token;
+/** Sign a JWT with 24 hr expiry. */
+function signToken(traderId: string, email: string): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error('JWT_SECRET not configured');
+  return sign({ traderId, email }, secret, { expiresIn: '24h' });
 }
+
+/**
+ * Bcrypt dummy hash — used when the email doesn't exist so the compare
+ * still takes the same time and prevents user enumeration via timing.
+ */
+const DUMMY_HASH = '$2b$12$invalidhashusedfortimingsafety0000000000000000000000000';
+
+// ─── Row mappers ─────────────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function rowToTrader(row: any) {
   return {
-    id: row.id,
-    email: row.email,
-    fullName: row.full_name,
-    businessName: row.business_name,
-    phone: row.phone,
-    vatNumber: row.vat_number ?? undefined,
-    logoUrl: row.logo_url ?? undefined,
-    addressLine1: row.address_line1 ?? '',
-    addressLine2: row.address_line2 ?? undefined,
-    city: row.city ?? '',
-    postcode: row.postcode ?? '',
-    defaultVatRate: row.default_vat_rate,
-    defaultMarkup: row.default_markup,
-    defaultLabourRate: row.default_labour_rate,
-    quoteValidityDays: row.quote_validity_days,
-    paymentTermsDays: row.payment_terms_days,
-    quoteFooterText: row.quote_footer_text ?? undefined,
-    subscriptionTier: row.subscription_tier,
-    subscriptionStatus: row.subscription_status,
-    stripeCustomerId: row.stripe_customer_id ?? undefined,
-    stripeSubscriptionId: row.stripe_subscription_id ?? undefined,
-    whatsappNumber: row.whatsapp_number ?? undefined,
-    quotesUsedThisMonth: row.quotes_used_this_month,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    id:               row.id,
+    name:             row.name,
+    businessName:     row.business_name,
+    trade:            row.trade,
+    location:         row.location,
+    email:            row.email,
+    whatsappNumber:   row.whatsapp_number ?? null,
+    stripeCustomerId: row.stripe_customer_id ?? null,
+    plan:             row.plan,
+    createdAt:        row.created_at,
+    updatedAt:        row.updated_at,
   };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rowToRateCard(row: any) {
+  return {
+    id:                 row.id,
+    traderId:           row.trader_id,
+    labourRate:         Number(row.labour_rate),
+    callOutFee:         Number(row.call_out_fee),
+    travelRatePerMile:  Number(row.travel_rate_per_mile),
+    markupPercent:      Number(row.markup_percent),
+    vatRegistered:      row.vat_registered,
+    vatRate:            Number(row.vat_rate),
+    depositPercent:     Number(row.deposit_percent),
+    updatedAt:          row.updated_at,
+  };
+}
+
+// ─── Routes ──────────────────────────────────────────────────────────────────
+
+export async function authRoutes(fastify: FastifyInstance) {
+  const db: Pool = fastify.db;
+
+  // ── POST /api/auth/register ────────────────────────────────────────────────
+  fastify.post('/register', async (req, reply) => {
+    // 1. Validate body
+    const parse = registerSchema.safeParse(req.body);
+    if (!parse.success) {
+      return reply.code(400).send(zodError(parse.error));
+    }
+    const body = parse.data;
+
+    // 2. Check for duplicate email before hashing (fast path)
+    const existing = await db.query(
+      'SELECT id FROM traders WHERE email = $1',
+      [body.email.toLowerCase()],
+    );
+    if (existing.rowCount && existing.rowCount > 0) {
+      return reply.code(409).send({ error: 'Email already registered' });
+    }
+
+    // 3. Hash password
+    const passwordHash = await bcrypt.hash(body.password, 12);
+
+    // 4. Insert trader + rate_card + copy job templates — all in one transaction
+    const client: PoolClient = await db.connect();
+    let traderId: string;
+
+    try {
+      await client.query('BEGIN');
+
+      // Insert trader
+      const traderRes = await client.query(
+        `INSERT INTO traders (name, business_name, trade, location, email, password_hash)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING *`,
+        [body.name, body.businessName, body.trade, body.location, body.email.toLowerCase(), passwordHash],
+      );
+      const traderRow = traderRes.rows[0];
+      traderId = traderRow.id;
+
+      // Insert rate_card with fixed defaults + caller-supplied labourRate / vatRegistered
+      await client.query(
+        `INSERT INTO rate_cards
+           (trader_id, labour_rate, call_out_fee, travel_rate_per_mile,
+            markup_percent, vat_registered, vat_rate, deposit_percent)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [traderId, body.labourRate, 45, 0.45, 20, body.vatRegistered, 0.20, 30],
+      );
+
+      // Copy master_job_templates for this trade into job_library
+      await client.query(
+        `INSERT INTO job_library (trader_id, job_key, label, labour_hours, is_custom, active)
+         SELECT $1, job_key, label, labour_hours, false, true
+         FROM master_job_templates
+         WHERE LOWER(trade) = LOWER($2)
+         ON CONFLICT (trader_id, job_key) DO NOTHING`,
+        [traderId, body.trade],
+      );
+
+      // Copy master_job_materials into job_materials, joined through job_library
+      await client.query(
+        `INSERT INTO job_materials (job_library_id, item, cost)
+         SELECT jl.id, mjm.item, mjm.cost
+         FROM master_job_templates mjt
+         JOIN master_job_materials mjm ON mjm.template_id = mjt.id
+         JOIN job_library jl
+           ON jl.trader_id = $1 AND jl.job_key = mjt.job_key
+         WHERE LOWER(mjt.trade) = LOWER($2)`,
+        [traderId, body.trade],
+      );
+
+      await client.query('COMMIT');
+
+      // 5. Create Stripe customer (after commit — failure here won't roll back)
+      try {
+        const stripe = getStripe();
+        const customer = await stripe.customers.create({
+          email: body.email.toLowerCase(),
+          name:  body.businessName,
+          metadata: { traderId },
+        });
+        await db.query(
+          'UPDATE traders SET stripe_customer_id = $1 WHERE id = $2',
+          [customer.id, traderId],
+        );
+        traderRow.stripe_customer_id = customer.id;
+      } catch (stripeErr) {
+        // Non-fatal — trader is created; stripe_customer_id stays null
+        fastify.log.warn({ err: stripeErr }, 'Stripe customer creation failed');
+      }
+
+      // 6. Fetch rate card to include in response
+      const rcRes = await db.query(
+        'SELECT * FROM rate_cards WHERE trader_id = $1',
+        [traderId],
+      );
+
+      const token = signToken(traderId, body.email.toLowerCase());
+
+      return reply.code(201).send({
+        token,
+        trader:   rowToTrader(traderRow),
+        rateCard: rcRes.rows[0] ? rowToRateCard(rcRes.rows[0]) : null,
+      });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  });
+
+  // ── POST /api/auth/login ───────────────────────────────────────────────────
+  fastify.post('/login', async (req, reply) => {
+    const parse = loginSchema.safeParse(req.body);
+    if (!parse.success) {
+      return reply.code(400).send(zodError(parse.error));
+    }
+    const { email, password } = parse.data;
+
+    // Always run bcrypt compare to prevent timing-based user enumeration
+    const res = await db.query(
+      'SELECT * FROM traders WHERE email = $1',
+      [email.toLowerCase()],
+    );
+    const trader = res.rows[0] ?? null;
+    const hashToCompare = trader?.password_hash ?? DUMMY_HASH;
+
+    const valid = await bcrypt.compare(password, hashToCompare);
+    if (!trader || !valid) {
+      // Generic message — never reveal whether the email exists
+      return reply.code(401).send({ error: 'Invalid email or password' });
+    }
+
+    const rcRes = await db.query(
+      'SELECT * FROM rate_cards WHERE trader_id = $1',
+      [trader.id],
+    );
+
+    const token = signToken(trader.id, trader.email);
+
+    return reply.send({
+      token,
+      trader:   rowToTrader(trader),
+      rateCard: rcRes.rows[0] ? rowToRateCard(rcRes.rows[0]) : null,
+    });
+  });
+
+  // ── GET /api/auth/me ───────────────────────────────────────────────────────
+  fastify.get('/me', { preHandler: [authenticate] }, async (req, reply) => {
+    const { traderId } = req.user;
+
+    const [traderRes, rcRes] = await Promise.all([
+      db.query('SELECT * FROM traders WHERE id = $1', [traderId]),
+      db.query('SELECT * FROM rate_cards WHERE trader_id = $1', [traderId]),
+    ]);
+
+    const trader = traderRes.rows[0];
+    if (!trader) return reply.code(404).send({ error: 'Trader not found' });
+
+    return reply.send({
+      trader:   rowToTrader(trader),
+      rateCard: rcRes.rows[0] ? rowToRateCard(rcRes.rows[0]) : null,
+    });
+  });
 }
