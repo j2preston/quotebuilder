@@ -7,13 +7,17 @@ import { Zap } from 'lucide-react';
 import { api } from '../lib/api.ts';
 import { useAuthStore } from '../store/auth.ts';
 import type { AuthResponse } from '@quotebot/shared';
+import { UK_TRADES } from '@quotebot/shared';
 
 const schema = z.object({
-  email: z.string().email('Enter a valid email'),
-  password: z.string().min(8, 'At least 8 characters'),
-  fullName: z.string().min(2, 'Enter your name'),
-  businessName: z.string().min(2, 'Enter your business name'),
-  phone: z.string().min(10, 'Enter a valid phone number'),
+  name:          z.string().min(2, 'Enter your name'),
+  businessName:  z.string().min(2, 'Enter your business name'),
+  trade:         z.string().min(1, 'Select your trade'),
+  location:      z.string().min(2, 'Enter your location'),
+  email:         z.string().email('Enter a valid email'),
+  password:      z.string().min(8, 'At least 8 characters'),
+  labourRate:    z.coerce.number().positive('Enter your hourly rate'),
+  vatRegistered: z.boolean(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -24,6 +28,7 @@ export default function RegisterPage() {
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
+    defaultValues: { labourRate: 45, vatRegistered: false, trade: 'Electrician' },
   });
 
   const { mutate, isPending, error } = useMutation({
@@ -32,7 +37,7 @@ export default function RegisterPage() {
       return res.data;
     },
     onSuccess: (data) => {
-      setTokens(data.accessToken, data.refreshToken);
+      setTokens(data.token, '');
       setTrader(data.trader);
       navigate('/dashboard');
     },
@@ -53,8 +58,8 @@ export default function RegisterPage() {
           <form onSubmit={handleSubmit((d) => mutate(d))} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-              <input {...register('fullName')} className="input" placeholder="John Smith" />
-              {errors.fullName && <p className="text-red-500 text-xs mt-1">{errors.fullName.message}</p>}
+              <input {...register('name')} className="input" placeholder="John Smith" />
+              {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>}
             </div>
 
             <div>
@@ -63,10 +68,19 @@ export default function RegisterPage() {
               {errors.businessName && <p className="text-red-500 text-xs mt-1">{errors.businessName.message}</p>}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-              <input {...register('phone')} type="tel" className="input" placeholder="07700 900000" />
-              {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone.message}</p>}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Trade</label>
+                <select {...register('trade')} className="input">
+                  {UK_TRADES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+                {errors.trade && <p className="text-red-500 text-xs mt-1">{errors.trade.message}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                <input {...register('location')} className="input" placeholder="e.g. Manchester" />
+                {errors.location && <p className="text-red-500 text-xs mt-1">{errors.location.message}</p>}
+              </div>
             </div>
 
             <div>
@@ -79,6 +93,20 @@ export default function RegisterPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
               <input {...register('password')} type="password" className="input" />
               {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Labour Rate (£/hr)</label>
+                <input {...register('labourRate')} type="number" min={1} step={0.01} className="input" />
+                {errors.labourRate && <p className="text-red-500 text-xs mt-1">{errors.labourRate.message}</p>}
+              </div>
+              <div className="flex items-end pb-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input {...register('vatRegistered')} type="checkbox" className="h-4 w-4 rounded border-gray-300 text-brand-700" />
+                  <span className="text-sm font-medium text-gray-700">VAT registered</span>
+                </label>
+              </div>
             </div>
 
             {error && (

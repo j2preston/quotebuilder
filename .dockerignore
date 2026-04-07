@@ -1,0 +1,35 @@
+# Git
+.git
+.gitignore
+
+# Node
+**/node_modules
+**/.npm
+
+# Build outputs (builder stage will create fresh ones)
+**/dist
+**/build
+
+# Dev / test files
+**/*.test.ts
+**/*.spec.ts
+**/coverage
+**/.nyc_output
+
+# Editor / OS
+.vscode
+.idea
+**/.DS_Store
+**/Thumbs.db
+
+# Secrets — never bake into images
+**/.env
+**/.env.*
+!**/.env.example
+**/main.parameters.json
+
+# CI
+.github
+
+# Docs
+**/*.md

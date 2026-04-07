@@ -6,6 +6,8 @@ import { dbPlugin } from './plugins/db.js';
 import { redisPlugin } from './plugins/redis.js';
 import { authRoutes } from './routes/auth.js';
 import { traderRoutes } from './routes/traders.js';
+import { quoteRoutes } from './routes/quotes.js';
+import { whatsappWebhookRoutes } from './routes/webhooks/twilio.js';
 
 const server = Fastify({
   logger: {
@@ -30,8 +32,10 @@ async function bootstrap() {
   await server.register(redisPlugin);
 
   // API routes — all under /api prefix
-  await server.register(authRoutes,   { prefix: '/api/auth' });
-  await server.register(traderRoutes, { prefix: '/api/trader' });
+  await server.register(authRoutes,            { prefix: '/api/auth' });
+  await server.register(traderRoutes,          { prefix: '/api/trader' });
+  await server.register(quoteRoutes,           { prefix: '/api/quotes' });
+  await server.register(whatsappWebhookRoutes, { prefix: '/api/webhooks/whatsapp' });
 
   server.get('/health', async () => ({ status: 'ok', ts: new Date().toISOString() }));
 

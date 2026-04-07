@@ -7,23 +7,17 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export const STATUS_LABELS: Record<QuoteStatus, string> = {
-  draft: 'Draft',
-  pending_review: 'Needs Review',
-  ready: 'Ready to Send',
-  sent: 'Sent',
-  viewed: 'Viewed',
+  draft:    'Draft',
+  sent:     'Sent',
   accepted: 'Accepted',
   declined: 'Declined',
-  expired: 'Expired',
+  expired:  'Expired',
 };
 
 export const STATUS_COLORS: Record<QuoteStatus, string> = {
-  draft: 'bg-gray-100 text-gray-700',
-  pending_review: 'bg-yellow-100 text-yellow-800',
-  ready: 'bg-blue-100 text-blue-800',
-  sent: 'bg-purple-100 text-purple-800',
-  viewed: 'bg-indigo-100 text-indigo-800',
+  draft:    'bg-gray-100 text-gray-700',
+  sent:     'bg-purple-100 text-purple-800',
   accepted: 'bg-green-100 text-green-800',
   declined: 'bg-red-100 text-red-800',
-  expired: 'bg-gray-100 text-gray-500',
+  expired:  'bg-gray-100 text-gray-500',
 };

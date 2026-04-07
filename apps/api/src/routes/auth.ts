@@ -67,11 +67,12 @@ function rowToTrader(row: any) {
     trade:            row.trade,
     location:         row.location,
     email:            row.email,
-    whatsappNumber:   row.whatsapp_number ?? null,
-    stripeCustomerId: row.stripe_customer_id ?? null,
-    plan:             row.plan,
-    createdAt:        row.created_at,
-    updatedAt:        row.updated_at,
+    whatsappNumber:      row.whatsapp_number ?? null,
+    stripeCustomerId:    row.stripe_customer_id ?? null,
+    plan:                row.plan ?? 'trial',
+    quotesUsedThisMonth: row.quotes_used_this_month ?? 0,
+    createdAt:           row.created_at,
+    updatedAt:           row.updated_at,
   };
 }
 

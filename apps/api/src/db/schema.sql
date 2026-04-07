@@ -64,9 +64,11 @@ CREATE TABLE IF NOT EXISTS job_library (
   job_key       VARCHAR(100) NOT NULL,
   label         TEXT         NOT NULL,
   labour_hours  DECIMAL(8,2) NOT NULL DEFAULT 0,
-  is_custom     BOOLEAN      NOT NULL DEFAULT FALSE,
-  active        BOOLEAN      NOT NULL DEFAULT TRUE,
-  created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  is_custom         BOOLEAN      NOT NULL DEFAULT FALSE,
+  active            BOOLEAN      NOT NULL DEFAULT TRUE,
+  correction_count  INTEGER      NOT NULL DEFAULT 0,
+  updated_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
   CONSTRAINT job_library_trader_job_key_unique UNIQUE (trader_id, job_key)
 );
 

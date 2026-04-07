@@ -67,6 +67,24 @@ export type UKTrade = (typeof UK_TRADES)[number];
 
 // ─── Job Keys (default library for electricians) ──────────────────────────────
 
+// ─── Job Type Labels ──────────────────────────────────────────────────────────
+
+export const JOB_TYPE_LABELS: Record<string, string> = {
+  consumer_unit_replacement: 'Consumer Unit Replacement',
+  socket_single:             'Single Socket Outlet',
+  socket_double:             'Double Socket Outlet',
+  light_fitting:             'Light Fitting Installation',
+  downlight_single:          'Downlight (per unit)',
+  rewire_full:               'Full Rewire',
+  rewire_partial:            'Partial Rewire',
+  ev_charger:                'EV Charger Installation',
+  outdoor_lighting:          'Outdoor Security Lighting',
+  fault_finding:             'Fault Finding',
+  eicr:                      'EICR Inspection',
+  pat_testing:               'PAT Testing',
+  other:                     'Other / General',
+};
+
 export const DEFAULT_ELECTRICIAN_JOBS = [
   { jobKey: 'consumer_unit_replacement', label: 'Consumer Unit Replacement', labourHours: 4 },
   { jobKey: 'socket_single',             label: 'Single Socket Outlet',       labourHours: 0.5 },

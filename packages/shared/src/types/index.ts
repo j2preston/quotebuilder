@@ -8,9 +8,11 @@ export interface Trader {
   businessName: string;
   trade: string;
   location: string;
-  whatsappNumber: string;
-  stripeCustomerId?: string;
+  email: string;
+  whatsappNumber?: string | null;
+  stripeCustomerId?: string | null;
   plan: Plan;
+  quotesUsedThisMonth?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -152,6 +154,12 @@ export interface UpdateQuoteRequest {
     unitPrice: number;
     sortOrder?: number;
   }>;
+}
+
+export interface AuthResponse {
+  token: string;
+  trader: Omit<Trader, 'createdAt' | 'updatedAt'>;
+  rateCard: RateCard | null;
 }
 
 export interface UpdateRateCardRequest {

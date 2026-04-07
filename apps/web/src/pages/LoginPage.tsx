@@ -29,7 +29,7 @@ export default function LoginPage() {
       return res.data;
     },
     onSuccess: (data) => {
-      setTokens(data.accessToken, data.refreshToken);
+      setTokens(data.token, '');
       setTrader(data.trader);
       navigate('/dashboard');
     },

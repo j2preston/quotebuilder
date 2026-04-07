@@ -6,7 +6,7 @@ import RegisterPage from './pages/RegisterPage.tsx';
 import DashboardPage from './pages/DashboardPage.tsx';
 import QuotesPage from './pages/QuotesPage.tsx';
 import QuoteDetailPage from './pages/QuoteDetailPage.tsx';
-import NewQuotePage from './pages/NewQuotePage.tsx';
+import DitatePage from './pages/DitatePage.tsx';
 import SettingsPage from './pages/SettingsPage.tsx';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -18,7 +18,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/login"    element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route
         path="/"
@@ -28,12 +28,12 @@ export default function App() {
           </RequireAuth>
         }
       >
-        <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="quotes" element={<QuotesPage />} />
-        <Route path="quotes/new" element={<NewQuotePage />} />
-        <Route path="quotes/:id" element={<QuoteDetailPage />} />
-        <Route path="settings" element={<SettingsPage />} />
+        <Route index              element={<Navigate to="/dashboard" replace />} />
+        <Route path="dashboard"   element={<DashboardPage />} />
+        <Route path="quotes"      element={<QuotesPage />} />
+        <Route path="quotes/:id"  element={<QuoteDetailPage />} />
+        <Route path="dictate"     element={<DitatePage />} />
+        <Route path="settings"    element={<SettingsPage />} />
       </Route>
     </Routes>
   );

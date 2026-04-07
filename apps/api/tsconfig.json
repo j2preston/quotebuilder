@@ -10,18 +10,14 @@
   "exclude": [
     "dist",
     "node_modules",
-    // ── Stale scaffolding — these reference removed packages (uuid,
-    //    @azure/storage-blob, postgres, ioredis) and old shared types.
-    //    They will be rewritten in subsequent tasks.
-    "src/routes/quotes.ts",
+    // ── Stale scaffolding — not yet rewritten; excluded until their task.
     "src/routes/uploads.ts",
     "src/routes/webhooks/stripe.ts",
     "src/routes/webhooks/twilio.ts",
     "src/services/ai-extract.ts",
-    "src/services/blob-storage.ts",
-    "src/services/pdf.ts",
+    "src/services/blob-storage.ts",  // superseded by blobStorage.ts
+    "src/services/pdf.ts",           // superseded by pdfGenerator.ts
     "src/services/pricing.ts",
-    "src/services/transcription.ts",
     // test files are run directly via tsx, not compiled
     "src/**/*.test.ts"
   ]

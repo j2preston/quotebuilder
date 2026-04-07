@@ -1,4 +1,4 @@
-import type { RateCard, QuoteLineItem } from '../types/index.js';
+import type { RateCard } from '../types/index.js';
 
 // ─── Money ────────────────────────────────────────────────────────────────────
 

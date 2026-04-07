@@ -9,3 +9,6 @@ build/
 coverage/
 .nyc_output/
 *.tsbuildinfo
+
+# Infra secrets — copy from main.parameters.example.json, never commit
+apps/api/infra/main.parameters.json

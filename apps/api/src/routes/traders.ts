@@ -109,6 +109,55 @@ export async function traderRoutes(fastify: FastifyInstance) {
     });
   });
 
+  // ── PUT /api/trader/profile ──────────────────────────────────────────────
+  fastify.put('/profile', auth, async (req, reply) => {
+    const { traderId } = req.user;
+    const profileSchema = z.object({
+      name:           z.string().min(1).optional(),
+      businessName:   z.string().min(1).optional(),
+      trade:          z.string().min(1).optional(),
+      location:       z.string().optional(),
+      whatsappNumber: z.string().nullable().optional(),
+    });
+
+    const parse = profileSchema.safeParse(req.body);
+    if (!parse.success) return reply.code(400).send(zodError(parse.error));
+    const body = parse.data;
+
+    if (Object.keys(body).length === 0) {
+      return reply.code(400).send({ error: 'No fields provided to update' });
+    }
+
+    const colMap: Record<string, string> = {
+      name:           'name',
+      businessName:   'business_name',
+      trade:          'trade',
+      location:       'location',
+      whatsappNumber: 'whatsapp_number',
+    };
+
+    const setClauses: string[] = [];
+    const values: unknown[]    = [];
+    let   paramIdx             = 1;
+
+    for (const [jsKey, pgCol] of Object.entries(colMap)) {
+      if (jsKey in body) {
+        setClauses.push(`${pgCol} = $${paramIdx}`);
+        values.push((body as Record<string, unknown>)[jsKey]);
+        paramIdx++;
+      }
+    }
+
+    values.push(traderId);
+    const res = await db.query(
+      `UPDATE traders SET ${setClauses.join(', ')}, updated_at = NOW()
+       WHERE id = $${paramIdx} RETURNING *`,
+      values,
+    );
+
+    return reply.send({ trader: rowToTrader(res.rows[0]) });
+  });
+
   // ── PUT /api/trader/rate-card ─────────────────────────────────────────────
   fastify.put('/rate-card', auth, async (req, reply) => {
     const { traderId } = req.user;

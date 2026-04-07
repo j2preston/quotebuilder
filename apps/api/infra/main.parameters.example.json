@@ -1,0 +1,36 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "uksouth"
+    },
+    "pgAdminLogin": {
+      "value": "quotebotadmin"
+    },
+    "pgAdminPassword": {
+      "value": "REPLACE_WITH_STRONG_PASSWORD"
+    },
+    "jwtSecret": {
+      "value": "REPLACE_WITH_64_CHAR_RANDOM_STRING"
+    },
+    "anthropicApiKey": {
+      "value": "REPLACE_WITH_ANTHROPIC_API_KEY"
+    },
+    "twilioAccountSid": {
+      "value": "REPLACE_WITH_TWILIO_ACCOUNT_SID"
+    },
+    "twilioAuthToken": {
+      "value": "REPLACE_WITH_TWILIO_AUTH_TOKEN"
+    },
+    "twilioWhatsappNumber": {
+      "value": "whatsapp:+14155238886"
+    },
+    "stripeSecretKey": {
+      "value": "REPLACE_WITH_STRIPE_SECRET_KEY"
+    },
+    "stripeWebhookSecret": {
+      "value": "REPLACE_WITH_STRIPE_WEBHOOK_SECRET"
+    }
+  }
+}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Mic, MicOff, Upload, FileText, Loader2 } from 'lucide-react';
 import { useUploadVoice } from '../hooks/useQuotes.ts';
 import { JOB_TYPE_LABELS } from '@quotebot/shared';
+import { api } from '../lib/api.ts';
 
 type Mode = 'choose' | 'voice' | 'manual';
 
@@ -44,7 +45,7 @@ export default function NewQuotePage() {
               <div>
                 <p className="font-semibold text-gray-900">Manual Entry</p>
                 <p className="text-sm text-gray-500 mt-0.5">
-                  Fill in job details and line items manually
+                  Describe the job — AI will price it for you
                 </p>
               </div>
             </div>
@@ -53,7 +54,10 @@ export default function NewQuotePage() {
       )}
 
       {mode === 'voice' && (
-        <VoiceUpload onSuccess={(quoteId) => navigate(`/quotes/${quoteId}`)} onBack={() => setMode('choose')} />
+        <VoiceUpload
+          onSuccess={(quoteId) => navigate(`/quotes/${quoteId}`)}
+          onBack={() => setMode('choose')}
+        />
       )}
 
       {mode === 'manual' && (
@@ -64,9 +68,9 @@ export default function NewQuotePage() {
 }
 
 function VoiceUpload({ onSuccess, onBack }: { onSuccess: (id: string) => void; onBack: () => void }) {
-  const [recording, setRecording] = useState(false);
+  const [recording, setRecording]         = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const chunksRef   = useRef<Blob[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { mutate: uploadVoice, isPending } = useUploadVoice();
@@ -79,7 +83,9 @@ function VoiceUpload({ onSuccess, onBack }: { onSuccess: (id: string) => void; o
     mr.onstop = () => {
       const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
       const file = new File([blob], 'recording.webm', { type: 'audio/webm' });
-      uploadVoice(file, { onSuccess: (d) => onSuccess(d.quoteId) });
+      uploadVoice(file, {
+        onSuccess: (d) => { if (d.quoteId) onSuccess(d.quoteId); },
+      });
       stream.getTracks().forEach((t) => t.stop());
     };
     mr.start();
@@ -95,7 +101,9 @@ function VoiceUpload({ onSuccess, onBack }: { onSuccess: (id: string) => void; o
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) uploadVoice(file, { onSuccess: (d) => onSuccess(d.quoteId) });
+    if (file) uploadVoice(file, {
+      onSuccess: (d) => { if (d.quoteId) onSuccess(d.quoteId); },
+    });
   };
 
   if (isPending) {
@@ -155,23 +163,38 @@ function VoiceUpload({ onSuccess, onBack }: { onSuccess: (id: string) => void; o
 }
 
 function ManualEntry({ onBack }: { onBack: () => void }) {
-  const navigate = useNavigate();
-  const [jobType, setJobType] = useState('other');
-  const [description, setDescription] = useState('');
+  const navigate       = useNavigate();
+  const [jobType, setJobType]           = useState('other');
+  const [description, setDescription]   = useState('');
   const [customerName, setCustomerName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError]               = useState<string | null>(null);
 
   const handleCreate = async () => {
+    if (!description.trim()) return;
     setIsSubmitting(true);
+    setError(null);
     try {
-      const { api } = await import('../lib/api.ts');
-      const { data } = await api.post('/quotes', {
-        jobType,
-        jobDescription: description,
-        customerName: customerName || undefined,
-        lineItems: [],
-      });
-      navigate(`/quotes/${data.id}`);
+      // Build a plain-text transcript from the form fields for the AI to process
+      const transcript = [
+        customerName ? `Customer: ${customerName}` : null,
+        `Job type: ${JOB_TYPE_LABELS[jobType] ?? jobType}`,
+        `Description: ${description}`,
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      const { data } = await api.post('/quotes/generate', { transcript });
+
+      if (data.status === 'ready' && data.quoteId) {
+        navigate(`/quotes/${data.quoteId}`);
+      } else if (data.status === 'needs_clarification') {
+        setError(`More info needed: ${data.question}`);
+      } else {
+        setError('This job needs manual review — please contact support.');
+      }
+    } catch {
+      setError('Something went wrong. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -197,7 +220,7 @@ function ManualEntry({ onBack }: { onBack: () => void }) {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className="input min-h-[100px] resize-none"
-            placeholder="Describe the work to be done…"
+            placeholder="Describe the work to be done, property type, any urgency…"
           />
         </div>
 
@@ -211,12 +234,18 @@ function ManualEntry({ onBack }: { onBack: () => void }) {
           />
         </div>
 
+        {error && (
+          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            {error}
+          </p>
+        )}
+
         <button
           onClick={handleCreate}
-          disabled={!description || isSubmitting}
+          disabled={!description.trim() || isSubmitting}
           className="btn-primary w-full"
         >
-          {isSubmitting ? 'Creating…' : 'Create Quote Draft'}
+          {isSubmitting ? 'Generating quote…' : 'Generate Quote'}
         </button>
       </div>
     </div>
