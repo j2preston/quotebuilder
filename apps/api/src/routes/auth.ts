@@ -1,7 +1,8 @@
 import 'dotenv/config';
 import type { FastifyInstance } from 'fastify';
 import bcrypt from 'bcrypt';
-import { sign } from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
+const { sign } = jwt;
 import Stripe from 'stripe';
 import { z } from 'zod';
 import type { Pool, PoolClient } from 'pg';

@@ -2,12 +2,12 @@
 -- Idempotent — safe to re-run on an existing database.
 -- Apply: psql $DATABASE_URL -f src/db/schema.sql
 
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- uuid-ossp is blocked on Azure PostgreSQL; gen_random_uuid() is built-in since PG13
 
 -- ─── Traders ──────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS traders (
-  id                  UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   name                TEXT        NOT NULL,
   business_name       TEXT        NOT NULL,
   trade               TEXT        NOT NULL,
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS traders (
 -- ─── Rate Cards ───────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS rate_cards (
-  id                    UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                    UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
   trader_id             UUID          NOT NULL REFERENCES traders(id) ON DELETE CASCADE,
   labour_rate           DECIMAL(10,2) NOT NULL DEFAULT 0,
   call_out_fee          DECIMAL(10,2) NOT NULL DEFAULT 0,
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS rate_cards (
 -- ─── Master Job Templates (global — seeded per trade) ─────────────────────────
 
 CREATE TABLE IF NOT EXISTS master_job_templates (
-  id            UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
   trade         TEXT         NOT NULL,
   job_key       VARCHAR(100) NOT NULL,
   label         TEXT         NOT NULL,
@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS master_job_templates (
 );
 
 CREATE TABLE IF NOT EXISTS master_job_materials (
-  id           UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id           UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
   template_id  UUID          NOT NULL REFERENCES master_job_templates(id) ON DELETE CASCADE,
   item         TEXT          NOT NULL,
   cost         DECIMAL(10,2) NOT NULL DEFAULT 0
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS master_job_materials (
 -- ─── Job Library (per-trader copy of templates, editable) ─────────────────────
 
 CREATE TABLE IF NOT EXISTS job_library (
-  id            UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
   trader_id     UUID         NOT NULL REFERENCES traders(id) ON DELETE CASCADE,
   job_key       VARCHAR(100) NOT NULL,
   label         TEXT         NOT NULL,
@@ -78,7 +78,7 @@ CREATE INDEX IF NOT EXISTS idx_job_library_active    ON job_library (trader_id, 
 -- ─── Job Materials ────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS job_materials (
-  id             UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id             UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
   job_library_id UUID          NOT NULL REFERENCES job_library(id) ON DELETE CASCADE,
   item           TEXT          NOT NULL,
   cost           DECIMAL(10,2) NOT NULL DEFAULT 0
@@ -89,7 +89,7 @@ CREATE INDEX IF NOT EXISTS idx_job_materials_job_id ON job_materials (job_librar
 -- ─── Quotes ───────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS quotes (
-  id                UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
   trader_id         UUID          NOT NULL REFERENCES traders(id) ON DELETE CASCADE,
   customer_name     TEXT          NOT NULL,
   customer_whatsapp TEXT          NOT NULL,
@@ -112,7 +112,7 @@ CREATE INDEX IF NOT EXISTS idx_quotes_created   ON quotes (trader_id, created_at
 -- ─── Quote Line Items ─────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS quote_line_items (
-  id           UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id           UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
   quote_id     UUID          NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
   description  TEXT          NOT NULL,
   qty          DECIMAL(10,3) NOT NULL DEFAULT 1,

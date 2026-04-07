@@ -1,4 +1,5 @@
-import { verify, type JwtPayload as JWTPayload } from 'jsonwebtoken';
+import jwt, { type JwtPayload as JWTPayload } from 'jsonwebtoken';
+const { verify } = jwt;
 import type { FastifyRequest, FastifyReply } from 'fastify';
 
 export interface AuthUser {
