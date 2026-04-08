@@ -34,9 +34,10 @@ COPY --from=builder --chown=nodejs:nodejs /app/package.json           ./package.
 COPY --from=builder --chown=nodejs:nodejs /app/packages/shared/package.json ./packages/shared/package.json
 COPY --from=builder --chown=nodejs:nodejs /app/packages/shared/dist         ./packages/shared/dist
 
-# API dist
+# API dist + workspace-local node_modules (npm may not hoist all packages to root)
 COPY --from=builder --chown=nodejs:nodejs /app/apps/api/package.json  ./apps/api/package.json
 COPY --from=builder --chown=nodejs:nodejs /app/apps/api/dist          ./apps/api/dist
+COPY --from=builder --chown=nodejs:nodejs /app/apps/api/node_modules  ./apps/api/node_modules
 
 USER nodejs
 
