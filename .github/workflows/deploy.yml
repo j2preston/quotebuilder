@@ -57,11 +57,19 @@ jobs:
           docker push "${IMAGE}:latest"
 
       # ── Build & push Web ─────────────────────────────────────────────────────
+      - name: Get API FQDN
+        id: api
+        run: |
+          FQDN=$(az containerapp show -n ca-quotebot-api -g rg-quotebot-prod \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          echo "url=https://${FQDN}" >> "$GITHUB_OUTPUT"
+
       - name: Build and push Web image
         run: |
           IMAGE="${{ steps.acr.outputs.server }}/quotebot-web"
           docker build \
             --file apps/web/Dockerfile \
+            --build-arg VITE_API_URL="${{ steps.api.outputs.url }}" \
             --tag "${IMAGE}:${{ github.sha }}" \
             --tag "${IMAGE}:latest" \
             .

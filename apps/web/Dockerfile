@@ -11,6 +11,10 @@ RUN npm ci --ignore-scripts
 COPY packages/shared/ ./packages/shared/
 COPY apps/web/        ./apps/web/
 
+# VITE_API_URL is baked into the JS bundle at build time
+ARG VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL}
+
 RUN npm run build -w packages/shared && npm run build -w apps/web
 
 # ── Serve stage ────────────────────────────────────────────────────────────────
@@ -21,8 +25,4 @@ COPY apps/web/nginx.conf.template          /tmp/nginx.conf.template
 
 EXPOSE 80
 
-# At startup, replace __API_URL__ placeholder and launch nginx
-CMD ["/bin/sh", "-c", \
-     "sed 's|__API_URL__|'\"${API_URL:-http://localhost:3001}\"'|g' \
-      /tmp/nginx.conf.template > /etc/nginx/conf.d/default.conf \
-     && exec nginx -g 'daemon off;'"]
+CMD ["sh", "-c", "cp /tmp/nginx.conf.template /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"]

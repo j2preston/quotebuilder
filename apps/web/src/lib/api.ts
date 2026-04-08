@@ -1,8 +1,12 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/auth.ts';
 
+// In production VITE_API_URL is baked in at build time (e.g. https://ca-quotebot-api...azurecontainerapps.io)
+// In local dev it is undefined → baseURL falls back to '/api' which Vite proxies to localhost:3001
+const apiBase = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
+
 export const api = axios.create({
-  baseURL: '/api',
+  baseURL: apiBase,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -28,7 +32,7 @@ api.interceptors.response.use(
           const refreshToken = useAuthStore.getState().refreshToken;
           if (!refreshToken) return null;
           try {
-            const { data } = await axios.post('/api/auth/refresh', { refreshToken });
+            const { data } = await api.post('/auth/refresh', { refreshToken });
             useAuthStore.getState().setTokens(data.accessToken, data.refreshToken);
             return data.accessToken;
           } catch {
