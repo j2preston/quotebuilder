@@ -102,7 +102,9 @@ export async function whatsappWebhookRoutes(fastify: FastifyInstance) {
 
     // ── Signature verification ─────────────────────────────────────────────
     if (authToken) {
-      const webhookUrl = `${process.env.API_URL}/api/webhooks/whatsapp`;
+      // Build the URL from the incoming request — works without API_URL env var
+      // and survives Azure's reverse proxy (HTTPS is always terminated at the edge)
+      const webhookUrl = `https://${req.headers.host}${req.url}`;
       const valid = twilio.validateRequest(authToken, signature, webhookUrl, params);
       if (!valid) {
         fastify.log.warn({ signature }, 'Invalid Twilio signature — request rejected');

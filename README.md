@@ -1,4 +1,11 @@
-# QuoteBot
+Web: https://ca-quotebot-web.thankfuldune-b686df08.uksouth.azurecontainerapps.io
+API: https://ca-quotebot-api.thankfuldune-b686df08.uksouth.azurecontainerapps.io
+
+
+
+#
+
+ QuoteBot
 
 AI-powered quoting tool for UK tradespeople. Dictate a job description, get a professional quote in seconds.
 

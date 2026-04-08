@@ -21,6 +21,22 @@ const jobLibraryUpdateSchema = z.object({
   active:      z.boolean().optional(),
 });
 
+const materialSchema = z.object({
+  item: z.string().min(1, 'Item name cannot be empty'),
+  cost: z.number().nonnegative('Cost must be non-negative'),
+});
+
+const jobLibraryCreateSchema = z.object({
+  jobKey:      z.string().min(1, 'Job key cannot be empty').regex(/^[a-z0-9_]+$/, 'Job key must be lowercase letters, digits, or underscores'),
+  label:       z.string().min(1, 'Label cannot be empty'),
+  labourHours: z.number().nonnegative('Labour hours must be non-negative'),
+  materials:   z.array(materialSchema).optional().default([]),
+});
+
+const materialsReplaceSchema = z.object({
+  materials: z.array(materialSchema),
+});
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function zodError(err: z.ZodError): { error: string; fields: Record<string, string> } {
@@ -217,11 +233,11 @@ export async function traderRoutes(fastify: FastifyInstance) {
   fastify.get('/job-library', auth, async (req, reply) => {
     const { traderId } = req.user;
 
-    // Fetch all active entries for this trader (tenant-scoped)
+    // Fetch ALL entries (active and inactive) for this trader
     const entriesRes = await db.query(
       `SELECT * FROM job_library
-       WHERE trader_id = $1 AND active = true
-       ORDER BY job_key ASC`,
+       WHERE trader_id = $1
+       ORDER BY is_custom ASC, job_key ASC`,
       [traderId],
     );
 
@@ -312,5 +328,131 @@ export async function traderRoutes(fastify: FastifyInstance) {
     );
 
     return reply.send({ jobEntry: rowToJobEntry(res.rows[0], matsRes.rows) });
+  });
+
+  // ── POST /api/trader/job-library ─────────────────────────────────────────
+  fastify.post('/job-library', auth, async (req, reply) => {
+    const { traderId } = req.user;
+
+    const parse = jobLibraryCreateSchema.safeParse(req.body);
+    if (!parse.success) return reply.code(400).send(zodError(parse.error));
+    const { jobKey, label, labourHours, materials } = parse.data;
+
+    // Prevent duplicate jobKey per trader
+    const dupCheck = await db.query(
+      'SELECT id FROM job_library WHERE trader_id = $1 AND job_key = $2',
+      [traderId, jobKey],
+    );
+    if ((dupCheck.rowCount ?? 0) > 0) {
+      return reply.code(409).send({ error: `Job key "${jobKey}" already exists in your library` });
+    }
+
+    const pgClient = await db.connect();
+    try {
+      await pgClient.query('BEGIN');
+
+      const insertRes = await pgClient.query(
+        `INSERT INTO job_library (trader_id, job_key, label, labour_hours, is_custom, active)
+         VALUES ($1, $2, $3, $4, true, true)
+         RETURNING *`,
+        [traderId, jobKey, label, labourHours],
+      );
+      const newEntry = insertRes.rows[0];
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const insertedMaterials: any[] = [];
+      for (const mat of materials) {
+        const matRes = await pgClient.query(
+          `INSERT INTO job_materials (job_library_id, item, cost)
+           VALUES ($1, $2, $3)
+           RETURNING *`,
+          [newEntry.id, mat.item, mat.cost],
+        );
+        insertedMaterials.push(matRes.rows[0]);
+      }
+
+      await pgClient.query('COMMIT');
+      return reply.code(201).send({ jobEntry: rowToJobEntry(newEntry, insertedMaterials) });
+    } catch (err) {
+      await pgClient.query('ROLLBACK');
+      throw err;
+    } finally {
+      pgClient.release();
+    }
+  });
+
+  // ── DELETE /api/trader/job-library/:id ───────────────────────────────────
+  fastify.delete('/job-library/:id', auth, async (req, reply) => {
+    const { traderId }    = req.user;
+    const { id: entryId } = req.params as { id: string };
+
+    const ownerCheck = await db.query(
+      'SELECT id, is_custom FROM job_library WHERE id = $1 AND trader_id = $2',
+      [entryId, traderId],
+    );
+    if ((ownerCheck.rowCount ?? 0) === 0) {
+      return reply.code(404).send({ error: 'Job library entry not found' });
+    }
+    if (!ownerCheck.rows[0].is_custom) {
+      return reply.code(403).send({ error: 'Only custom jobs can be deleted — disable standard jobs instead' });
+    }
+
+    // Cascade deletes materials via FK
+    await db.query('DELETE FROM job_library WHERE id = $1 AND trader_id = $2', [entryId, traderId]);
+    return reply.code(204).send();
+  });
+
+  // ── PUT /api/trader/job-library/:id/materials ─────────────────────────────
+  // Replace all materials for a job entry in one call
+  fastify.put('/job-library/:id/materials', auth, async (req, reply) => {
+    const { traderId }    = req.user;
+    const { id: entryId } = req.params as { id: string };
+
+    const ownerCheck = await db.query(
+      'SELECT id FROM job_library WHERE id = $1 AND trader_id = $2',
+      [entryId, traderId],
+    );
+    if ((ownerCheck.rowCount ?? 0) === 0) {
+      return reply.code(404).send({ error: 'Job library entry not found' });
+    }
+
+    const parse = materialsReplaceSchema.safeParse(req.body);
+    if (!parse.success) return reply.code(400).send(zodError(parse.error));
+    const { materials } = parse.data;
+
+    const pgClient = await db.connect();
+    try {
+      await pgClient.query('BEGIN');
+
+      await pgClient.query('DELETE FROM job_materials WHERE job_library_id = $1', [entryId]);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const insertedMaterials: any[] = [];
+      for (const mat of materials) {
+        const matRes = await pgClient.query(
+          `INSERT INTO job_materials (job_library_id, item, cost)
+           VALUES ($1, $2, $3)
+           RETURNING *`,
+          [entryId, mat.item, mat.cost],
+        );
+        insertedMaterials.push(matRes.rows[0]);
+      }
+
+      // Mark as custom since trader edited it
+      await pgClient.query(
+        'UPDATE job_library SET is_custom = true WHERE id = $1',
+        [entryId],
+      );
+
+      await pgClient.query('COMMIT');
+
+      const entryRes = await db.query('SELECT * FROM job_library WHERE id = $1', [entryId]);
+      return reply.send({ jobEntry: rowToJobEntry(entryRes.rows[0], insertedMaterials) });
+    } catch (err) {
+      await pgClient.query('ROLLBACK');
+      throw err;
+    } finally {
+      pgClient.release();
+    }
   });
 }

@@ -125,30 +125,34 @@ export async function generateQuote(
   );
 
   // 2. Call 1 — extract structured fields from transcript
-  const jobKeyList = jobLibrary.length > 0
-    ? jobLibrary.map((j) => j.jobKey).join(', ')
-    : '(no jobs configured)';
+  // Job list: "key|Label|mat1,mat2" — pipe-separated, one job per line
+  const jobList = jobLibrary.length > 0
+    ? jobLibrary.map((j) => {
+        const mats = j.materials.map((m) => m.item).join(',');
+        return mats ? `${j.jobKey}|${j.label}|${mats}` : `${j.jobKey}|${j.label}`;
+      }).join('\n')
+    : '(none)';
 
   const extractionSystem =
-    `You are a quoting assistant for ${trader.name}, a ${trader.trade} based in ${trader.location}.\n\n` +
-    `Your job is to extract structured information from a job description to generate a quote.\n\n` +
-    `Extract the following fields and respond with ONLY valid JSON, no other text:\n` +
+    `${trader.name} (${trader.trade}, ${trader.location}). Return JSON only:\n` +
     `{\n` +
-    `  "jobKey": string,           // closest match from: ${jobKeyList}\n` +
-    `  "propertyType": string,     // one of: house, flat_ground, flat_upper, commercial, new_build\n` +
-    `  "urgency": string,          // one of: standard, next_day, same_day\n` +
-    `  "distanceMiles": number,    // estimate from location if mentioned, default 0\n` +
-    `  "complexityFlags": string[], // from: older_property, no_existing_cable_run, multiple_floors\n` +
-    `  "customerName": string,     // extract if mentioned, else ""\n` +
-    `  "notes": string,            // any other relevant details\n` +
-    `  "includeCallOut": boolean,  // true if this is the first visit/attendance\n` +
-    `  "confidence": "high" | "medium" | "low",\n` +
-    `  "clarificationNeeded": string | null  // single question if critical info missing\n` +
-    `}`;
+    `"jobKey":"",        // exact key from list below\n` +
+    `"propertyType":"",  // house|flat_ground|flat_upper|commercial|new_build\n` +
+    `"urgency":"",       // standard|next_day|same_day\n` +
+    `"distanceMiles":0,  // 0 if not mentioned\n` +
+    `"complexityFlags":[], // older_property|no_existing_cable_run|multiple_floors\n` +
+    `"customerName":"",\n` +
+    `"notes":"",\n` +
+    `"includeCallOut":false, // true=first visit\n` +
+    `"confidence":"",    // high|medium|low\n` +
+    `"clarificationNeeded":null // or question string\n` +
+    `}\n` +
+    `Jobs (key|label|materials):\n` +
+    jobList;
 
   const extractionResponse = await anthropic.messages.create({
     model:      MODEL,
-    max_tokens: 500,
+    max_tokens: 300,
     system:     extractionSystem,
     messages:   [{ role: 'user', content: transcript }],
   });
@@ -158,9 +162,15 @@ export async function generateQuote(
     .map((b) => b.text)
     .join('');
 
+  // Strip markdown code fences if Claude wraps the JSON in ```json ... ```
+  const extractionJson = extractionText
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/, '')
+    .trim();
+
   let extracted: ExtractedFields;
   try {
-    extracted = JSON.parse(extractionText);
+    extracted = JSON.parse(extractionJson);
   } catch {
     return {
       status:  'manual_review',
@@ -195,32 +205,19 @@ export async function generateQuote(
     };
   }
 
-  // 6. Call 2 — assemble professional job description and line item labels
+  // 6. Call 2 — polish job description and line item labels
   const assemblySystem =
-    `You are writing a professional quote document for ${trader.name}.\n` +
-    `Given the job details and calculated line items, write:\n` +
-    `1. A one-sentence job description (professional, specific)\n` +
-    `2. Improved line item descriptions (professional, specific — max 8 words each)\n\n` +
-    `Respond with ONLY valid JSON:\n` +
-    `{\n` +
-    `  "jobDescription": string,\n` +
-    `  "lineItemLabels": string[]  // same count and order as input line items\n` +
-    `}`;
+    `Write a professional quote for ${trader.name}. Return JSON only:\n` +
+    `{"jobDescription":"","lineItemLabels":[]}\n` +
+    `jobDescription: one professional sentence. lineItemLabels: one per item, max 8 words, same order.`;
 
   const assemblyUserContent = JSON.stringify({
-    extractedFields: {
-      jobKey:       extracted.jobKey,
-      propertyType: extracted.propertyType,
-      urgency:      extracted.urgency,
-      customerName: extracted.customerName,
-      notes:        extracted.notes,
-    },
-    lineItems: calculation.lineItems.map((li) => ({
-      description: li.description,
-      qty:         li.qty,
-      unitPrice:   li.unitPrice,
-      total:       li.total,
-    })),
+    job:      jobLibrary.find((j) => j.jobKey === extracted.jobKey)?.label ?? extracted.jobKey,
+    customer: extracted.customerName || undefined,
+    property: extracted.propertyType,
+    urgency:  extracted.urgency,
+    notes:    extracted.notes || undefined,
+    items:    calculation.lineItems.map((li) => li.description),
   });
 
   const assemblyResponse = await anthropic.messages.create({
@@ -233,25 +230,27 @@ export async function generateQuote(
   const assemblyText = assemblyResponse.content
     .filter((b): b is Anthropic.TextBlock => b.type === 'text')
     .map((b) => b.text)
-    .join('');
+    .join('')
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/, '')
+    .trim();
 
   let assembled: AssemblyResult;
   try {
     assembled = JSON.parse(assemblyText);
   } catch {
-    // Degrade gracefully — keep original descriptions
     assembled = {
-      jobDescription: calculation.lineItems[0]?.description ?? extracted.jobKey,
+      jobDescription: buildJobDescription(
+        jobLibrary.find((j) => j.jobKey === extracted.jobKey)?.label ?? extracted.jobKey,
+        extracted.customerName,
+        pricingInput.propertyType,
+        pricingInput.urgency,
+      ),
       lineItemLabels: calculation.lineItems.map((li) => li.description),
     };
   }
 
-  // Ensure label count matches; fall back to original description for any gap
-  const labels = calculation.lineItems.map(
-    (li, i) => assembled.lineItemLabels[i] ?? li.description,
-  );
-
-  // Build notes: job description + any additional notes from transcript
+  const labels    = calculation.lineItems.map((li, i) => assembled.lineItemLabels[i] ?? li.description);
   const quoteNotes = [assembled.jobDescription, extracted.notes || '']
     .map((s) => s.trim())
     .filter(Boolean)
@@ -298,4 +297,28 @@ export async function generateQuote(
   } finally {
     pgClient.release();
   }
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function buildJobDescription(
+  jobLabel:     string,
+  customerName: string,
+  propertyType: PropertyType,
+  urgency:      Urgency,
+): string {
+  const parts = [jobLabel];
+  if (customerName) parts.push(`for ${customerName}`);
+
+  const propSuffix: Partial<Record<PropertyType, string>> = {
+    flat_upper:  'upper-floor flat',
+    commercial:  'commercial property',
+    new_build:   'new build',
+    flat_ground: 'ground-floor flat',
+  };
+  if (propSuffix[propertyType]) parts.push(`at ${propSuffix[propertyType]}`);
+  if (urgency === 'same_day') parts.push('(same-day)');
+  if (urgency === 'next_day') parts.push('(next day)');
+
+  return parts.join(' ');
 }

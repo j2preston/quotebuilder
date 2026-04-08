@@ -49,6 +49,38 @@ export function useUpdateJobEntry() {
   });
 }
 
+export function useCreateJobEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { jobKey: string; label: string; labourHours: number; materials: { item: string; cost: number }[] }) => {
+      const { data } = await api.post('/trader/job-library', body);
+      return data as { jobEntry: JobLibraryEntry };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['trader', 'job-library'] }),
+  });
+}
+
+export function useDeleteJobEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/trader/job-library/${id}`);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['trader', 'job-library'] }),
+  });
+}
+
+export function useUpdateJobMaterials() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, materials }: { id: string; materials: { item: string; cost: number }[] }) => {
+      const { data } = await api.put(`/trader/job-library/${id}/materials`, { materials });
+      return data as { jobEntry: JobLibraryEntry };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['trader', 'job-library'] }),
+  });
+}
+
 // ─── Profile ──────────────────────────────────────────────────────────────────
 
 export function useUpdateProfile() {

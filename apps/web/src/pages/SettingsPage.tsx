@@ -1,9 +1,16 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { ChevronDown, ChevronUp, ToggleLeft, ToggleRight, LogOut, Zap } from 'lucide-react';
+import {
+  ChevronDown, ChevronUp, ToggleLeft, ToggleRight,
+  LogOut, Zap, Plus, Trash2, ChevronRight, X, Check,
+} from 'lucide-react';
 import { useAuthStore } from '../store/auth.ts';
-import { useRateCard, useUpdateRateCard, useJobLibrary, useUpdateJobEntry, useUpdateProfile } from '../hooks/useTrader.ts';
+import {
+  useRateCard, useUpdateRateCard,
+  useJobLibrary, useUpdateJobEntry, useCreateJobEntry, useDeleteJobEntry, useUpdateJobMaterials,
+  useUpdateProfile,
+} from '../hooks/useTrader.ts';
 import { api } from '../lib/api.ts';
 import type { JobLibraryEntry } from '@quotebot/shared';
 
@@ -119,92 +126,429 @@ function RateCardSection() {
   );
 }
 
+// ─── Materials editor (per job) ───────────────────────────────────────────────
+
+type DraftMaterial = { item: string; cost: string };
+
+function MaterialsEditor({ entry, onClose }: { entry: JobLibraryEntry; onClose: () => void }) {
+  const updateMaterials = useUpdateJobMaterials();
+  const [rows, setRows] = useState<DraftMaterial[]>(
+    entry.materials.length > 0
+      ? entry.materials.map((m) => ({ item: m.item, cost: String(m.cost) }))
+      : [{ item: '', cost: '' }],
+  );
+
+  const setRow = (i: number, field: keyof DraftMaterial, value: string) => {
+    setRows((prev) => prev.map((r, idx) => idx === i ? { ...r, [field]: value } : r));
+  };
+  const addRow = () => setRows((prev) => [...prev, { item: '', cost: '' }]);
+  const removeRow = (i: number) => setRows((prev) => prev.filter((_, idx) => idx !== i));
+
+  const save = async () => {
+    const materials = rows
+      .filter((r) => r.item.trim() && r.cost.trim())
+      .map((r) => ({ item: r.item.trim(), cost: parseFloat(r.cost) }))
+      .filter((r) => !isNaN(r.cost));
+    await updateMaterials.mutateAsync({ id: entry.id, materials });
+    onClose();
+  };
+
+  return (
+    <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
+      <p className="text-xs font-medium text-gray-600 mb-2">Materials (supply cost, ex-markup)</p>
+      {rows.map((row, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <input
+            value={row.item}
+            onChange={(e) => setRow(i, 'item', e.target.value)}
+            placeholder="e.g. Consumer unit 18-way"
+            className="input flex-1 py-1.5 text-sm"
+          />
+          <div className="relative shrink-0 w-24">
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">£</span>
+            <input
+              value={row.cost}
+              onChange={(e) => setRow(i, 'cost', e.target.value)}
+              placeholder="0.00"
+              type="number"
+              min={0}
+              step={0.01}
+              className="input pl-6 py-1.5 text-sm"
+            />
+          </div>
+          <button
+            onClick={() => removeRow(i)}
+            className="shrink-0 text-gray-300 hover:text-red-400 p-1"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ))}
+      <button onClick={addRow} className="flex items-center gap-1 text-xs text-brand-700 hover:underline mt-1">
+        <Plus className="h-3 w-3" /> Add material
+      </button>
+      <div className="flex items-center gap-2 pt-2">
+        <button
+          onClick={save}
+          disabled={updateMaterials.isPending}
+          className="btn-primary text-xs py-1.5"
+        >
+          {updateMaterials.isPending ? 'Saving…' : 'Save materials'}
+        </button>
+        <button onClick={onClose} className="btn-secondary text-xs py-1.5">Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Add custom job form ──────────────────────────────────────────────────────
+
+type NewJobForm = { jobKey: string; label: string; labourHours: string };
+
+function AddJobForm({ onDone }: { onDone: () => void }) {
+  const createJob = useCreateJobEntry();
+  const [form, setForm] = useState<NewJobForm>({ jobKey: '', label: '', labourHours: '' });
+  const [materials, setMaterials] = useState<DraftMaterial[]>([]);
+  const [error, setError] = useState('');
+
+  const setField = (k: keyof NewJobForm, v: string) => {
+    setForm((f) => {
+      const next = { ...f, [k]: v };
+      // Auto-derive jobKey from label
+      if (k === 'label') {
+        next.jobKey = v.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+      }
+      return next;
+    });
+  };
+
+  const addMaterial = () => setMaterials((m) => [...m, { item: '', cost: '' }]);
+  const setMatRow = (i: number, field: keyof DraftMaterial, val: string) => {
+    setMaterials((prev) => prev.map((r, idx) => idx === i ? { ...r, [field]: val } : r));
+  };
+  const removeMat = (i: number) => setMaterials((prev) => prev.filter((_, idx) => idx !== i));
+
+  const submit = async () => {
+    setError('');
+    const hours = parseFloat(form.labourHours);
+    if (!form.label.trim()) return setError('Label is required');
+    if (isNaN(hours) || hours <= 0) return setError('Labour hours must be a positive number');
+
+    const mats = materials
+      .filter((r) => r.item.trim() && r.cost.trim())
+      .map((r) => ({ item: r.item.trim(), cost: parseFloat(r.cost) }))
+      .filter((r) => !isNaN(r.cost));
+
+    try {
+      await createJob.mutateAsync({ jobKey: form.jobKey, label: form.label.trim(), labourHours: hours, materials: mats });
+      onDone();
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to save';
+      setError(msg);
+    }
+  };
+
+  return (
+    <div className="border border-brand-200 rounded-xl p-4 space-y-3 bg-brand-50/30">
+      <p className="text-sm font-semibold text-gray-900">New custom job</p>
+
+      <Field label="Job label">
+        <input
+          value={form.label}
+          onChange={(e) => setField('label', e.target.value)}
+          placeholder="e.g. Install EV charger"
+          className="input"
+        />
+      </Field>
+
+      <Field label="Job key" hint="auto-generated — editable">
+        <input
+          value={form.jobKey}
+          onChange={(e) => setForm((f) => ({ ...f, jobKey: e.target.value.replace(/[^a-z0-9_]/g, '') }))}
+          placeholder="install_ev_charger"
+          className="input font-mono text-sm"
+        />
+      </Field>
+
+      <Field label="Labour hours">
+        <input
+          value={form.labourHours}
+          onChange={(e) => setField('labourHours', e.target.value)}
+          type="number" min={0.25} step={0.25}
+          placeholder="2.5"
+          className="input"
+        />
+      </Field>
+
+      {materials.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-gray-600">Materials</p>
+          {materials.map((row, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                value={row.item}
+                onChange={(e) => setMatRow(i, 'item', e.target.value)}
+                placeholder="Item name"
+                className="input flex-1 py-1.5 text-sm"
+              />
+              <div className="relative shrink-0 w-24">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">£</span>
+                <input
+                  value={row.cost}
+                  onChange={(e) => setMatRow(i, 'cost', e.target.value)}
+                  type="number" min={0} step={0.01}
+                  placeholder="0.00"
+                  className="input pl-6 py-1.5 text-sm"
+                />
+              </div>
+              <button onClick={() => removeMat(i)} className="text-gray-300 hover:text-red-400 p-1">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button onClick={addMaterial} className="flex items-center gap-1 text-xs text-brand-700 hover:underline">
+        <Plus className="h-3 w-3" /> Add material
+      </button>
+
+      {error && <p className="text-xs text-red-500">{error}</p>}
+
+      <div className="flex items-center gap-2 pt-1">
+        <button onClick={submit} disabled={createJob.isPending} className="btn-primary text-xs py-1.5">
+          {createJob.isPending ? 'Saving…' : 'Add job'}
+        </button>
+        <button onClick={onDone} className="btn-secondary text-xs py-1.5">Cancel</button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Job library section ──────────────────────────────────────────────────────
 
 function JobLibrarySection() {
   const { data: entries = [], isLoading } = useJobLibrary();
-  const updateEntry = useUpdateJobEntry();
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [hoursDraft, setHoursDraft] = useState('');
+  const updateEntry   = useUpdateJobEntry();
+  const deleteEntry   = useDeleteJobEntry();
+  const [editingHoursId, setEditingHoursId]       = useState<string | null>(null);
+  const [hoursDraft, setHoursDraft]               = useState('');
+  const [expandedMatsId, setExpandedMatsId]       = useState<string | null>(null);
+  const [showAddForm, setShowAddForm]             = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId]     = useState<string | null>(null);
 
-  const startEdit = (e: JobLibraryEntry) => {
-    setEditingId(e.id);
+  const startEditHours = (e: JobLibraryEntry) => {
+    setEditingHoursId(e.id);
     setHoursDraft(String(e.labourHours));
   };
 
-  const commitEdit = (entry: JobLibraryEntry) => {
+  const commitHours = (entry: JobLibraryEntry) => {
     const next = parseFloat(hoursDraft);
     if (!isNaN(next) && next !== entry.labourHours) {
       updateEntry.mutate({ id: entry.id, labourHours: next });
     }
-    setEditingId(null);
+    setEditingHoursId(null);
   };
 
-  if (isLoading) return <div className="pt-4 space-y-2">{[1,2,3].map((i) => <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />)}</div>;
+  const toggleMats = (id: string) => {
+    setExpandedMatsId((prev) => prev === id ? null : id);
+  };
+
+  if (isLoading) return (
+    <div className="pt-4 space-y-2">
+      {[1,2,3].map((i) => <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />)}
+    </div>
+  );
+
+  const active   = entries.filter((e) => e.active);
+  const inactive = entries.filter((e) => !e.active);
 
   return (
-    <div className="pt-4 space-y-2">
-      {entries.length === 0 && (
+    <div className="pt-4 space-y-3">
+      {showAddForm ? (
+        <AddJobForm onDone={() => setShowAddForm(false)} />
+      ) : (
+        <button
+          onClick={() => setShowAddForm(true)}
+          className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-xl py-3 text-sm text-gray-400 hover:border-brand-300 hover:text-brand-700 transition-colors"
+        >
+          <Plus className="h-4 w-4" />
+          Add custom job
+        </button>
+      )}
+
+      {entries.length === 0 && !showAddForm && (
         <p className="text-sm text-gray-400 text-center py-4">No jobs configured yet.</p>
       )}
-      {entries.map((entry) => (
-        <div
-          key={entry.id}
-          className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-gray-200"
-        >
-          {/* Toggle active */}
-          <button
-            onClick={() => updateEntry.mutate({ id: entry.id, active: !entry.active })}
-            className={`shrink-0 ${entry.active ? 'text-brand-700' : 'text-gray-300'}`}
-          >
-            {entry.active
-              ? <ToggleRight className="h-6 w-6" />
-              : <ToggleLeft  className="h-6 w-6" />}
-          </button>
 
-          {/* Label + calibration badge */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-900 truncate">{entry.label}</span>
-              {entry.isCustom && (
-                <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
-                  <Zap className="h-3 w-3" />
-                  Calibrated
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {entry.materials.length > 0 ? `${entry.materials.length} materials` : 'Labour only'}
-            </p>
-          </div>
+      {/* Active jobs */}
+      {active.length > 0 && (
+        <div className="space-y-1.5">
+          {active.map((entry) => (
+            <JobEntryRow
+              key={entry.id}
+              entry={entry}
+              editingHoursId={editingHoursId}
+              hoursDraft={hoursDraft}
+              expandedMatsId={expandedMatsId}
+              confirmDeleteId={confirmDeleteId}
+              onToggle={() => updateEntry.mutate({ id: entry.id, active: false })}
+              onStartEditHours={() => startEditHours(entry)}
+              onHoursDraftChange={setHoursDraft}
+              onCommitHours={() => commitHours(entry)}
+              onCancelHours={() => setEditingHoursId(null)}
+              onToggleMats={() => toggleMats(entry.id)}
+              onCloseMats={() => setExpandedMatsId(null)}
+              onDeleteClick={() => setConfirmDeleteId(entry.id)}
+              onDeleteConfirm={() => { deleteEntry.mutate(entry.id); setConfirmDeleteId(null); }}
+              onDeleteCancel={() => setConfirmDeleteId(null)}
+            />
+          ))}
+        </div>
+      )}
 
-          {/* Hours editor */}
-          <div className="shrink-0 text-right">
-            {editingId === entry.id ? (
-              <div className="flex items-center gap-1">
-                <input
-                  autoFocus
-                  type="number"
-                  value={hoursDraft}
-                  onChange={(e) => setHoursDraft(e.target.value)}
-                  onBlur={() => commitEdit(entry)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(entry); if (e.key === 'Escape') setEditingId(null); }}
-                  className="input w-16 py-1 text-xs text-right"
-                  min={0.1} step={0.25}
-                />
-                <span className="text-xs text-gray-400">hr</span>
-              </div>
-            ) : (
-              <button
-                onClick={() => startEdit(entry)}
-                className="text-sm font-semibold text-brand-700 hover:underline"
-              >
-                {entry.labourHours}h
-              </button>
+      {/* Inactive jobs */}
+      {inactive.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide pt-1">Disabled</p>
+          {inactive.map((entry) => (
+            <JobEntryRow
+              key={entry.id}
+              entry={entry}
+              editingHoursId={editingHoursId}
+              hoursDraft={hoursDraft}
+              expandedMatsId={expandedMatsId}
+              confirmDeleteId={confirmDeleteId}
+              onToggle={() => updateEntry.mutate({ id: entry.id, active: true })}
+              onStartEditHours={() => startEditHours(entry)}
+              onHoursDraftChange={setHoursDraft}
+              onCommitHours={() => commitHours(entry)}
+              onCancelHours={() => setEditingHoursId(null)}
+              onToggleMats={() => toggleMats(entry.id)}
+              onCloseMats={() => setExpandedMatsId(null)}
+              onDeleteClick={() => setConfirmDeleteId(entry.id)}
+              onDeleteConfirm={() => { deleteEntry.mutate(entry.id); setConfirmDeleteId(null); }}
+              onDeleteCancel={() => setConfirmDeleteId(null)}
+            />
+          ))}
+        </div>
+      )}
+
+      <p className="text-xs text-gray-400 text-center pt-1">
+        Toggle jobs on/off · tap hours to edit · expand to edit materials
+      </p>
+    </div>
+  );
+}
+
+// ─── Single job row ───────────────────────────────────────────────────────────
+
+interface JobEntryRowProps {
+  entry:              JobLibraryEntry;
+  editingHoursId:     string | null;
+  hoursDraft:         string;
+  expandedMatsId:     string | null;
+  confirmDeleteId:    string | null;
+  onToggle:           () => void;
+  onStartEditHours:   () => void;
+  onHoursDraftChange: (v: string) => void;
+  onCommitHours:      () => void;
+  onCancelHours:      () => void;
+  onToggleMats:       () => void;
+  onCloseMats:        () => void;
+  onDeleteClick:      () => void;
+  onDeleteConfirm:    () => void;
+  onDeleteCancel:     () => void;
+}
+
+function JobEntryRow({
+  entry, editingHoursId, hoursDraft, expandedMatsId, confirmDeleteId,
+  onToggle, onStartEditHours, onHoursDraftChange, onCommitHours, onCancelHours,
+  onToggleMats, onCloseMats, onDeleteClick, onDeleteConfirm, onDeleteCancel,
+}: JobEntryRowProps) {
+  const isEditingHours = editingHoursId === entry.id;
+  const isExpanded     = expandedMatsId === entry.id;
+  const isConfirming   = confirmDeleteId === entry.id;
+  const dimmed         = !entry.active;
+
+  return (
+    <div className={`rounded-xl border transition-colors ${dimmed ? 'border-gray-100 bg-gray-50/50' : 'border-gray-200 bg-white'}`}>
+      <div className="flex items-center gap-2 p-3">
+        {/* Active toggle */}
+        <button onClick={onToggle} className={`shrink-0 ${entry.active ? 'text-brand-700' : 'text-gray-300'}`}>
+          {entry.active ? <ToggleRight className="h-6 w-6" /> : <ToggleLeft className="h-6 w-6" />}
+        </button>
+
+        {/* Label + badges */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`text-sm font-medium truncate ${dimmed ? 'text-gray-400' : 'text-gray-900'}`}>
+              {entry.label}
+            </span>
+            {entry.isCustom && (
+              <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                <Zap className="h-3 w-3" />
+                Custom
+              </span>
             )}
           </div>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {entry.materials.length > 0 ? `${entry.materials.length} material${entry.materials.length > 1 ? 's' : ''}` : 'Labour only'}
+          </p>
         </div>
-      ))}
+
+        {/* Hours editor */}
+        <div className="shrink-0 text-right">
+          {isEditingHours ? (
+            <div className="flex items-center gap-1">
+              <input
+                autoFocus
+                type="number"
+                value={hoursDraft}
+                onChange={(e) => onHoursDraftChange(e.target.value)}
+                onBlur={onCommitHours}
+                onKeyDown={(e) => { if (e.key === 'Enter') onCommitHours(); if (e.key === 'Escape') onCancelHours(); }}
+                className="input w-16 py-1 text-xs text-right"
+                min={0.1} step={0.25}
+              />
+              <span className="text-xs text-gray-400">hr</span>
+            </div>
+          ) : (
+            <button onClick={onStartEditHours} className="text-sm font-semibold text-brand-700 hover:underline">
+              {entry.labourHours}h
+            </button>
+          )}
+        </div>
+
+        {/* Materials expand */}
+        <button onClick={onToggleMats} className="shrink-0 text-gray-400 hover:text-gray-600 p-1">
+          <ChevronRight className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+        </button>
+
+        {/* Delete (custom only) */}
+        {entry.isCustom && !isConfirming && (
+          <button onClick={onDeleteClick} className="shrink-0 text-gray-200 hover:text-red-400 p-1">
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
+        {isConfirming && (
+          <div className="flex items-center gap-1">
+            <button onClick={onDeleteConfirm} className="text-red-500 hover:text-red-600 p-1">
+              <Check className="h-4 w-4" />
+            </button>
+            <button onClick={onDeleteCancel} className="text-gray-300 hover:text-gray-500 p-1">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Materials expand panel */}
+      {isExpanded && (
+        <div className="px-3 pb-3">
+          <MaterialsEditor entry={entry} onClose={onCloseMats} />
+        </div>
+      )}
     </div>
   );
 }
@@ -273,9 +617,6 @@ export default function SettingsPage() {
       </Section>
 
       <Section title="Job Library">
-        <p className="text-xs text-gray-400 pt-3 mb-3">
-          Toggle jobs on/off · tap hours to edit · calibrated badge shows AI has auto-adjusted from your corrections
-        </p>
         <JobLibrarySection />
       </Section>
 

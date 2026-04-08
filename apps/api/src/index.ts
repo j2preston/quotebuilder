@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import formbody from '@fastify/formbody';
 import multipart from '@fastify/multipart';
 import { dbPlugin } from './plugins/db.js';
 import { redisPlugin } from './plugins/redis.js';
@@ -23,6 +24,8 @@ async function bootstrap() {
     origin: process.env.FRONTEND_URL ?? 'http://localhost:5173',
     credentials: true,
   });
+
+  await server.register(formbody);   // required for Twilio application/x-www-form-urlencoded
 
   await server.register(multipart, {
     limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB
