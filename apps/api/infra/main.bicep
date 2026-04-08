@@ -351,7 +351,7 @@ resource apiApp 'Microsoft.App/containerApps@2023-05-01' = {
     configuration: {
       ingress: {
         external: true
-        targetPort: 3001
+        targetPort: 80
         transport: 'http'
         allowInsecure: false
       }
@@ -427,10 +427,6 @@ resource apiApp 'Microsoft.App/containerApps@2023-05-01' = {
             {
               name: 'NODE_ENV'
               value: 'production'
-            }
-            {
-              name: 'PORT'
-              value: '3001'
             }
             {
               name: 'FRONTEND_URL'

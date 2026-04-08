@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import type { FastifyInstance } from 'fastify';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 const { sign } = jwt;
 import Stripe from 'stripe';
