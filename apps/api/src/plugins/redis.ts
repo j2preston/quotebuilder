@@ -11,7 +11,13 @@ declare module 'fastify' {
 }
 
 export const redisPlugin = fp(async (fastify: FastifyInstance) => {
-  const client = createClient({ url: process.env.REDIS_URL });
+  const client = createClient({
+    url: process.env.REDIS_URL,
+    socket: {
+      keepAlive: 5000,
+      reconnectStrategy: (retries) => Math.min(retries * 100, 3000),
+    },
+  });
 
   client.on('error', (err) => fastify.log.error({ err }, 'Redis error'));
 
