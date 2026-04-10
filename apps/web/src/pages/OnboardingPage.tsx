@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap, ChevronRight, ChevronLeft, Check } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { Zap, ChevronRight, ChevronLeft, Check, Plus } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.ts';
 import { useAuthStore } from '../store/auth.ts';
 import { useCompleteOnboarding } from '../hooks/useTrader.ts';
@@ -37,13 +37,21 @@ interface MaterialRow {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function OnboardingPage() {
-  const navigate  = useNavigate();
+  const navigate    = useNavigate();
+  const queryClient = useQueryClient();
   const { trader, setTrader } = useAuthStore();
   const complete  = useCompleteOnboarding();
 
   const [step,   setStep]   = useState<Step>('rates');
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState<string | null>(null);
+
+  // Custom job form state
+  const [showAddJob,    setShowAddJob]    = useState(false);
+  const [newJobLabel,   setNewJobLabel]   = useState('');
+  const [newJobHours,   setNewJobHours]   = useState(1);
+  const [addingJob,     setAddingJob]     = useState(false);
+  const [addJobError,   setAddJobError]   = useState<string | null>(null);
 
   // ── Step 1: Rates ──────────────────────────────────────────────────────────
   const [rates, setRates] = useState({
@@ -115,6 +123,53 @@ export default function OnboardingPage() {
 
   // ── Step 4: WhatsApp ───────────────────────────────────────────────────────
   const [whatsapp, setWhatsapp] = useState(trader?.whatsappNumber ?? '');
+
+  // ── Select / Deselect all ──────────────────────────────────────────────────
+  function selectAll(active: boolean) {
+    setJobStates((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(next)) {
+        next[key] = { ...next[key], active };
+      }
+      return next;
+    });
+  }
+
+  // ── Add custom job (POSTs immediately to get a real ID) ────────────────────
+  async function handleAddCustomJob() {
+    if (!newJobLabel.trim()) return;
+    setAddingJob(true);
+    setAddJobError(null);
+    try {
+      // Derive a unique job key from the label + timestamp
+      const jobKey = `custom_${newJobLabel.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}_${Date.now().toString(36)}`;
+      const { data } = await api.post('/trader/job-library', {
+        jobKey,
+        label:       newJobLabel.trim(),
+        labourHours: newJobHours,
+        materials:   [],
+      });
+      const entry: JobLibraryEntry = data.jobEntry;
+
+      // Add to query cache so the list re-renders immediately
+      queryClient.setQueryData<JobLibraryEntry[]>(['trader', 'job-library'], (old = []) => [...old, entry]);
+
+      // Add to local state as active
+      setJobStates((prev) => ({
+        ...prev,
+        [entry.id]: { active: true, labourHours: newJobHours },
+      }));
+
+      // Reset form
+      setNewJobLabel('');
+      setNewJobHours(1);
+      setShowAddJob(false);
+    } catch {
+      setAddJobError('Could not add job — please try again.');
+    } finally {
+      setAddingJob(false);
+    }
+  }
 
   // ── Navigation helpers ─────────────────────────────────────────────────────
   const stepIndex = STEPS.indexOf(step);
@@ -284,51 +339,124 @@ export default function OnboardingPage() {
 
           {/* ── Step 2: Jobs & Hours ── */}
           {step === 'jobs' && (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {!jobLibrary ? (
                 <p className="text-sm text-gray-500">Loading your job library…</p>
-              ) : jobLibrary.length === 0 ? (
-                <p className="text-sm text-gray-500">No jobs found for your trade. You can add custom jobs in Settings.</p>
               ) : (
                 <>
-                  <div className="card divide-y divide-gray-100">
-                    {jobLibrary.map((job) => {
-                      const state = jobStates[job.id] ?? { active: job.active, labourHours: job.labourHours };
-                      return (
-                        <div key={job.id} className="flex items-center gap-3 px-4 py-3">
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 rounded border-gray-300 text-brand-700 shrink-0"
-                            checked={state.active}
-                            onChange={(e) =>
-                              setJobStates((prev) => ({
-                                ...prev,
-                                [job.id]: { ...state, active: e.target.checked },
-                              }))
-                            }
-                          />
-                          <span className={`flex-1 text-sm ${state.active ? 'text-gray-900' : 'text-gray-400'}`}>
-                            {job.label}
-                          </span>
-                          <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Select / Deselect all */}
+                  {jobLibrary.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => selectAll(true)}
+                        className="text-xs text-brand-700 font-medium hover:underline"
+                      >
+                        Select all
+                      </button>
+                      <span className="text-gray-300">·</span>
+                      <button
+                        onClick={() => selectAll(false)}
+                        className="text-xs text-gray-500 font-medium hover:underline"
+                      >
+                        Deselect all
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Job list */}
+                  {jobLibrary.length > 0 && (
+                    <div className="card divide-y divide-gray-100">
+                      {jobLibrary.map((job) => {
+                        const state = jobStates[job.id] ?? { active: job.active, labourHours: job.labourHours };
+                        return (
+                          <div key={job.id} className="flex items-center gap-3 px-4 py-3">
                             <input
-                              type="number" min={0.25} max={100} step={0.25}
-                              disabled={!state.active}
-                              className="input w-20 text-sm py-1 disabled:opacity-40"
-                              value={state.labourHours}
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-gray-300 text-brand-700 shrink-0"
+                              checked={state.active}
                               onChange={(e) =>
                                 setJobStates((prev) => ({
                                   ...prev,
-                                  [job.id]: { ...state, labourHours: Number(e.target.value) },
+                                  [job.id]: { ...state, active: e.target.checked },
                                 }))
                               }
                             />
-                            <span className="text-xs text-gray-400">hrs</span>
+                            <span className={`flex-1 text-sm ${state.active ? 'text-gray-900' : 'text-gray-400'}`}>
+                              {job.label}
+                              {job.isCustom && (
+                                <span className="ml-1.5 text-xs text-brand-600 bg-brand-50 px-1.5 py-0.5 rounded">custom</span>
+                              )}
+                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <input
+                                type="number" min={0.25} max={100} step={0.25}
+                                disabled={!state.active}
+                                className="input w-20 text-sm py-1 disabled:opacity-40"
+                                value={state.labourHours}
+                                onChange={(e) =>
+                                  setJobStates((prev) => ({
+                                    ...prev,
+                                    [job.id]: { ...state, labourHours: Number(e.target.value) },
+                                  }))
+                                }
+                              />
+                              <span className="text-xs text-gray-400">hrs</span>
+                            </div>
                           </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Add custom job */}
+                  {showAddJob ? (
+                    <div className="card p-4 space-y-3 border-brand-200">
+                      <p className="text-sm font-medium text-gray-700">New custom job</p>
+                      <div className="flex gap-2">
+                        <input
+                          autoFocus
+                          className="input flex-1 text-sm"
+                          placeholder="e.g. Underfloor heating install"
+                          value={newJobLabel}
+                          onChange={(e) => setNewJobLabel(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') void handleAddCustomJob(); if (e.key === 'Escape') setShowAddJob(false); }}
+                        />
+                        <div className="flex items-center gap-1 shrink-0">
+                          <input
+                            type="number" min={0.25} max={100} step={0.25}
+                            className="input w-20 text-sm"
+                            value={newJobHours}
+                            onChange={(e) => setNewJobHours(Number(e.target.value))}
+                          />
+                          <span className="text-xs text-gray-400">hrs</span>
                         </div>
-                      );
-                    })}
-                  </div>
+                      </div>
+                      {addJobError && <p className="text-xs text-red-500">{addJobError}</p>}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => { setShowAddJob(false); setNewJobLabel(''); setAddJobError(null); }}
+                          className="btn-secondary text-sm py-1.5"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => void handleAddCustomJob()}
+                          disabled={!newJobLabel.trim() || addingJob}
+                          className="btn-primary text-sm py-1.5"
+                        >
+                          {addingJob ? 'Adding…' : <><Plus className="h-3.5 w-3.5" /> Add job</>}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowAddJob(true)}
+                      className="flex items-center gap-1.5 text-sm text-brand-700 font-medium hover:underline"
+                    >
+                      <Plus className="h-4 w-4" /> Add custom job
+                    </button>
+                  )}
+
                   <p className="text-xs text-gray-400 px-1">
                     Your actual average beats a generic estimate — these hours directly affect your quote price.
                   </p>
