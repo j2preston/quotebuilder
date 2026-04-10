@@ -18,9 +18,9 @@ Ordered by impact on first impressions and quote accuracy.
 ## P1 — Core product promise (quote accuracy)
 
 - [x] **Onboarding: trader sets labour hours per job** — covered by onboarding wizard (step 2)
-- [ ] **Add minimum charge to rate card** — prevents embarrassingly low quotes on short jobs (e.g. 15-min callout quoting £12 labour)
-- [ ] **Extract-then-confirm on dictate page** — after AI extraction, show trader a summary card (job, property, urgency, customer) to confirm or correct before pricing runs. Teaches traders what to include and catches misidentification before a wrong quote is created
-- [ ] **Property/urgency quick-tap chips on dictate page** — tappable chips bypass AI extraction for these two fields entirely; guaranteed-correct input, no inference needed
+- [x] **Add minimum charge to rate card** — prevents embarrassingly low quotes on short jobs (e.g. 15-min callout quoting £12 labour)
+- [x] **Extract-then-confirm on dictate page** — after AI extraction, show trader a summary card (job, property, urgency, customer) to confirm or correct before pricing runs. Teaches traders what to include and catches misidentification before a wrong quote is created
+- [x] **Property/urgency quick-tap chips on dictate page** — covered by the confirmation card: property and urgency shown as tap-to-select chips before pricing runs
 - [ ] **Customer WhatsApp: structured first response with gaps** — on first contact, immediately reply with a pre-filled summary showing what was understood and explicit placeholders for anything missing, e.g:
   ```
   Hi Dave! Here's what I have so far:
