@@ -307,6 +307,7 @@ export async function saveConfirmedQuote(
     .join('\n\n') || null;
 
   // Insert quote + line items in a single transaction
+  let quoteId = '';
   const pgClient = await db.connect();
   try {
     await pgClient.query('BEGIN');
@@ -329,7 +330,7 @@ export async function saveConfirmedQuote(
       ],
     );
 
-    const quoteId: string = insertQuote.rows[0].id;
+    quoteId = insertQuote.rows[0].id as string;
 
     for (const [i, li] of calculation.lineItems.entries()) {
       await pgClient.query(
@@ -339,21 +340,23 @@ export async function saveConfirmedQuote(
       );
     }
 
-    // Increment monthly usage counter (ignore if column doesn't exist)
-    await pgClient.query(
-      `UPDATE traders SET quotes_used_this_month = COALESCE(quotes_used_this_month, 0) + 1
-       WHERE id = $1`,
-      [traderId],
-    ).catch(() => { /* column may not exist on older schema — non-fatal */ });
-
     await pgClient.query('COMMIT');
-    return { status: 'ready', quoteId };
   } catch (err) {
     await pgClient.query('ROLLBACK');
     throw err;
   } finally {
     pgClient.release();
   }
+
+  // Increment monthly usage counter outside the quote transaction so a missing
+  // column can never abort the insert. Non-fatal if column doesn't exist yet.
+  await db.query(
+    `UPDATE traders SET quotes_used_this_month = COALESCE(quotes_used_this_month, 0) + 1
+     WHERE id = $1`,
+    [traderId],
+  ).catch(() => { /* non-fatal */ });
+
+  return { status: 'ready', quoteId };
 }
 
 // ─── Public API — single-call convenience wrapper ─────────────────────────────
