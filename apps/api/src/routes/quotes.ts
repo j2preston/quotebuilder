@@ -2,7 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Pool } from 'pg';
 import { authenticate } from '../middleware/auth.js';
-import { generateQuote } from '../services/quoteAI.js';
+import { generateQuote, extractQuoteFields, saveConfirmedQuote } from '../services/quoteAI.js';
+import type { ExtractedFields } from '../services/quoteAI.js';
 import { generateQuotePdf } from '../services/pdfGenerator.js';
 import { uploadQuotePdf } from '../services/blobStorage.js';
 import { calcQuoteTotals, roundMoney } from '@quotebot/shared';
@@ -11,6 +12,19 @@ import { calcQuoteTotals, roundMoney } from '@quotebot/shared';
 
 const generateSchema = z.object({
   transcript: z.string().min(1, 'Transcript cannot be empty'),
+});
+
+const confirmSchema = z.object({
+  jobKey:          z.string().min(1, 'Job key required'),
+  propertyType:    z.enum(['house', 'flat_ground', 'flat_upper', 'commercial', 'new_build']),
+  urgency:         z.enum(['standard', 'next_day', 'same_day']),
+  distanceMiles:   z.number().nonnegative().default(0),
+  complexityFlags: z.array(z.string()).default([]),
+  customerName:    z.string().default(''),
+  notes:           z.string().default(''),
+  includeCallOut:  z.boolean().default(false),
+  confidence:      z.enum(['high', 'medium', 'low']).default('high'),
+  clarificationNeeded: z.string().nullable().default(null),
 });
 
 const updateQuoteSchema = z.object({
@@ -88,6 +102,43 @@ export async function quoteRoutes(fastify: FastifyInstance) {
     if (!parse.success) return reply.code(400).send(zodError(parse.error));
 
     const result = await generateQuote(parse.data.transcript, req.user.traderId, db);
+
+    switch (result.status) {
+      case 'needs_clarification':
+        return reply.code(200).send({ status: 'needs_clarification', question: result.question });
+      case 'manual_review':
+        return reply.code(200).send({ status: 'manual_review', warning: result.warning });
+      case 'ready':
+        return reply.code(201).send({ status: 'ready', quoteId: result.quoteId });
+    }
+  });
+
+  // ── POST /extract — extract fields from transcript without saving ──────────
+
+  fastify.post('/extract', auth, async (req, reply) => {
+    const parse = generateSchema.safeParse(req.body);
+    if (!parse.success) return reply.code(400).send(zodError(parse.error));
+
+    const result = await extractQuoteFields(parse.data.transcript, req.user.traderId, db);
+
+    if (result.status === 'needs_clarification') {
+      return reply.code(200).send({ status: 'needs_clarification', question: result.question });
+    }
+    return reply.code(200).send({
+      status:        'extracted',
+      fields:        result.fields,
+      availableJobs: result.availableJobs,
+    });
+  });
+
+  // ── POST /confirm — price + save pre-confirmed fields ──────────────────────
+
+  fastify.post('/confirm', auth, async (req, reply) => {
+    const parse = confirmSchema.safeParse(req.body);
+    if (!parse.success) return reply.code(400).send(zodError(parse.error));
+
+    const fields = parse.data as ExtractedFields;
+    const result = await saveConfirmedQuote(fields, req.user.traderId, db);
 
     switch (result.status) {
       case 'needs_clarification':

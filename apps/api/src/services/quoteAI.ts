@@ -15,7 +15,7 @@ const MODEL = 'claude-sonnet-4-6';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface ExtractedFields {
+export interface ExtractedFields {
   jobKey: string;
   propertyType: string;
   urgency: string;
@@ -27,6 +27,15 @@ interface ExtractedFields {
   confidence: 'high' | 'medium' | 'low';
   clarificationNeeded: string | null;
 }
+
+export interface AvailableJob {
+  jobKey: string;
+  label: string;
+}
+
+export type ExtractionResult =
+  | { status: 'needs_clarification'; question: string }
+  | { status: 'extracted'; fields: ExtractedFields; availableJobs: AvailableJob[] };
 
 interface AssemblyResult {
   jobDescription: string;
@@ -81,17 +90,16 @@ function rowToJobEntry(row: any, materials: any[]): JobLibraryEntry {
 
 const anthropic = new Anthropic();
 
-// ─── Public API ───────────────────────────────────────────────────────────────
+// ─── Step 1: Extract structured fields from transcript ────────────────────────
 
-export async function generateQuote(
+export async function extractQuoteFields(
   transcript: string,
   traderId: string,
   db: Pool,
-): Promise<QuoteResult> {
-  // 1. Load trader context, rate card, and job library in parallel
-  const [traderRes, rcRes, libraryRes] = await Promise.all([
+): Promise<ExtractionResult> {
+  // Load trader context and job library
+  const [traderRes, libraryRes] = await Promise.all([
     db.query('SELECT name, trade, location FROM traders WHERE id = $1', [traderId]),
-    db.query('SELECT * FROM rate_cards WHERE trader_id = $1', [traderId]),
     db.query(
       'SELECT * FROM job_library WHERE trader_id = $1 AND active = true ORDER BY job_key',
       [traderId],
@@ -99,12 +107,9 @@ export async function generateQuote(
   ]);
 
   const trader = traderRes.rows[0];
-  const rcRow  = rcRes.rows[0];
-  if (!trader || !rcRow) {
-    return { status: 'manual_review', warning: 'Trader or rate card not configured' };
+  if (!trader) {
+    return { status: 'needs_clarification', question: 'Trader account not found.' };
   }
-
-  const rateCard = rowToRateCard(rcRow);
 
   // Batch-fetch materials for all job library entries
   const libEntryIds = libraryRes.rows.map((r) => r.id);
@@ -125,8 +130,6 @@ export async function generateQuote(
     rowToJobEntry(row, matsByEntry[row.id] ?? []),
   );
 
-  // 2. Call 1 — extract structured fields from transcript
-  // Job list: "key|Label|mat1,mat2" — pipe-separated, one job per line
   const jobList = jobLibrary.length > 0
     ? jobLibrary.map((j) => {
         const mats = j.materials.map((m) => m.item).join(',');
@@ -163,7 +166,6 @@ export async function generateQuote(
     .map((b) => b.text)
     .join('');
 
-  // Strip markdown code fences if Claude wraps the JSON in ```json ... ```
   const extractionJson = extractionText
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```\s*$/, '')
@@ -173,32 +175,76 @@ export async function generateQuote(
   try {
     extracted = JSON.parse(extractionJson);
   } catch {
+    // Return a clarification rather than crashing
     return {
-      status:  'manual_review',
-      warning: 'Could not parse job details from transcript — please create quote manually',
+      status: 'needs_clarification',
+      question: 'I couldn\'t understand the job details. Could you describe it again, including the job type, property, and customer name?',
     };
   }
 
-  // 3. Return clarification request if needed
   if (extracted.clarificationNeeded !== null && extracted.confidence === 'low') {
     return { status: 'needs_clarification', question: extracted.clarificationNeeded };
   }
 
-  // 4. Run deterministic pricing engine
+  const availableJobs: AvailableJob[] = jobLibrary.map((j) => ({ jobKey: j.jobKey, label: j.label }));
+
+  return { status: 'extracted', fields: extracted, availableJobs };
+}
+
+// ─── Step 2: Price + save a confirmed set of fields ───────────────────────────
+
+export async function saveConfirmedQuote(
+  fields: ExtractedFields,
+  traderId: string,
+  db: Pool,
+): Promise<QuoteResult> {
+  // Load rate card + job library (re-fetch from DB — don't trust client-side context)
+  const [rcRes, libraryRes] = await Promise.all([
+    db.query('SELECT * FROM rate_cards WHERE trader_id = $1', [traderId]),
+    db.query(
+      'SELECT * FROM job_library WHERE trader_id = $1 AND active = true ORDER BY job_key',
+      [traderId],
+    ),
+  ]);
+
+  const rcRow = rcRes.rows[0];
+  if (!rcRow) {
+    return { status: 'manual_review', warning: 'Rate card not configured' };
+  }
+
+  const rateCard = rowToRateCard(rcRow);
+
+  const libEntryIds = libraryRes.rows.map((r) => r.id);
+  const matsRes     = libEntryIds.length > 0
+    ? await db.query(
+        'SELECT * FROM job_materials WHERE job_library_id = ANY($1::uuid[])',
+        [libEntryIds],
+      )
+    : { rows: [] };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const matsByEntry: Record<string, any[]> = {};
+  for (const mat of matsRes.rows) {
+    (matsByEntry[mat.job_library_id] ??= []).push(mat);
+  }
+
+  const jobLibrary: JobLibraryEntry[] = libraryRes.rows.map((row) =>
+    rowToJobEntry(row, matsByEntry[row.id] ?? []),
+  );
+
   const pricingInput: PricingInput = {
-    jobKey:          String(extracted.jobKey ?? ''),
-    propertyType:    (extracted.propertyType ?? 'house') as PropertyType,
-    urgency:         (extracted.urgency ?? 'standard') as Urgency,
-    distanceMiles:   Number(extracted.distanceMiles) || 0,
-    complexityFlags: Array.isArray(extracted.complexityFlags) ? extracted.complexityFlags : [],
-    customerName:    String(extracted.customerName ?? ''),
-    notes:           extracted.notes || undefined,
-    includeCallOut:  Boolean(extracted.includeCallOut),
+    jobKey:          String(fields.jobKey ?? ''),
+    propertyType:    (fields.propertyType ?? 'house') as PropertyType,
+    urgency:         (fields.urgency ?? 'standard') as Urgency,
+    distanceMiles:   Number(fields.distanceMiles) || 0,
+    complexityFlags: Array.isArray(fields.complexityFlags) ? fields.complexityFlags : [],
+    customerName:    String(fields.customerName ?? ''),
+    notes:           fields.notes || undefined,
+    includeCallOut:  Boolean(fields.includeCallOut),
   };
 
   const calculation = calculateQuote(pricingInput, { rateCard, jobLibrary });
 
-  // 5. Job not in library — send for manual review
   if (calculation.lineItems.length === 0) {
     return {
       status:  'manual_review',
@@ -206,18 +252,21 @@ export async function generateQuote(
     };
   }
 
-  // 6. Call 2 — polish job description and line item labels
+  // Polish job description and line item labels via Claude
+  const traderRes = await db.query('SELECT name FROM traders WHERE id = $1', [traderId]);
+  const traderName = traderRes.rows[0]?.name ?? '';
+
   const assemblySystem =
-    `Write a professional quote for ${trader.name}. Return JSON only:\n` +
+    `Write a professional quote for ${traderName}. Return JSON only:\n` +
     `{"jobDescription":"","lineItemLabels":[]}\n` +
     `jobDescription: one professional sentence. lineItemLabels: one per item, max 8 words, same order.`;
 
   const assemblyUserContent = JSON.stringify({
-    job:      jobLibrary.find((j) => j.jobKey === extracted.jobKey)?.label ?? extracted.jobKey,
-    customer: extracted.customerName || undefined,
-    property: extracted.propertyType,
-    urgency:  extracted.urgency,
-    notes:    extracted.notes || undefined,
+    job:      jobLibrary.find((j) => j.jobKey === fields.jobKey)?.label ?? fields.jobKey,
+    customer: fields.customerName || undefined,
+    property: fields.propertyType,
+    urgency:  fields.urgency,
+    notes:    fields.notes || undefined,
     items:    calculation.lineItems.map((li) => li.description),
   });
 
@@ -242,8 +291,8 @@ export async function generateQuote(
   } catch {
     assembled = {
       jobDescription: buildJobDescription(
-        jobLibrary.find((j) => j.jobKey === extracted.jobKey)?.label ?? extracted.jobKey,
-        extracted.customerName,
+        jobLibrary.find((j) => j.jobKey === fields.jobKey)?.label ?? fields.jobKey,
+        fields.customerName,
         pricingInput.propertyType,
         pricingInput.urgency,
       ),
@@ -252,12 +301,12 @@ export async function generateQuote(
   }
 
   const labels    = calculation.lineItems.map((li, i) => assembled.lineItemLabels[i] ?? li.description);
-  const quoteNotes = [assembled.jobDescription, extracted.notes || '']
+  const quoteNotes = [assembled.jobDescription, fields.notes || '']
     .map((s) => s.trim())
     .filter(Boolean)
     .join('\n\n') || null;
 
-  // 7. Insert quote + line items in a single transaction
+  // Insert quote + line items in a single transaction
   const pgClient = await db.connect();
   try {
     await pgClient.query('BEGIN');
@@ -270,8 +319,8 @@ export async function generateQuote(
        RETURNING id`,
       [
         traderId,
-        extracted.customerName || '',
-        '',                          // WhatsApp captured separately via Twilio webhook
+        fields.customerName || '',
+        '',
         calculation.subtotal,
         calculation.vatAmount,
         calculation.total,
@@ -305,6 +354,18 @@ export async function generateQuote(
   } finally {
     pgClient.release();
   }
+}
+
+// ─── Public API — single-call convenience wrapper ─────────────────────────────
+
+export async function generateQuote(
+  transcript: string,
+  traderId: string,
+  db: Pool,
+): Promise<QuoteResult> {
+  const extraction = await extractQuoteFields(transcript, traderId, db);
+  if (extraction.status === 'needs_clarification') return extraction;
+  return saveConfirmedQuote(extraction.fields, traderId, db);
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
