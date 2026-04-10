@@ -30,6 +30,7 @@ export interface RateCard {
   vatRegistered: boolean;
   vatRate: number;          // e.g. 0.20
   depositPercent: number;   // e.g. 25 for 25%
+  minimumCharge: number;    // £ — 0 means no minimum
   updatedAt: Date;
 }
 
@@ -171,4 +172,5 @@ export interface UpdateRateCardRequest {
   vatRegistered?: boolean;
   vatRate?: number;
   depositPercent?: number;
+  minimumCharge?: number;
 }

@@ -90,6 +90,7 @@ function rowToRateCard(row: any) {
     vatRegistered:      row.vat_registered,
     vatRate:            Number(row.vat_rate),
     depositPercent:     Number(row.deposit_percent),
+    minimumCharge:      Number(row.minimum_charge ?? 0),
     updatedAt:          row.updated_at,
   };
 }

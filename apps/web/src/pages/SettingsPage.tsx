@@ -85,7 +85,7 @@ function RateCardSection() {
   const { data: rc } = useRateCard();
   const updateRc = useUpdateRateCard();
 
-  type Form = { labourRate: number; callOutFee: number; travelRatePerMile: number; markupPercent: number; vatRegistered: boolean; vatRate: number; depositPercent: number };
+  type Form = { labourRate: number; callOutFee: number; travelRatePerMile: number; markupPercent: number; vatRegistered: boolean; vatRate: number; depositPercent: number; minimumCharge: number };
   const { register, handleSubmit, formState: { isDirty } } = useForm<Form>({
     defaultValues: {
       labourRate:        rc?.labourRate        ?? 45,
@@ -95,6 +95,7 @@ function RateCardSection() {
       vatRegistered:     rc?.vatRegistered     ?? false,
       vatRate:           rc?.vatRate           ?? 0.20,
       depositPercent:    rc?.depositPercent    ?? 25,
+      minimumCharge:     rc?.minimumCharge     ?? 0,
     },
   });
 
@@ -115,6 +116,9 @@ function RateCardSection() {
         </Field>
         <Field label="Deposit (%)">
           <input {...register('depositPercent')} type="number" min={0} max={100} step={1} className="input" />
+        </Field>
+        <Field label="Minimum charge (£)" hint="0 = no minimum">
+          <input {...register('minimumCharge')} type="number" min={0} step={1} className="input" />
         </Field>
       </div>
       <label className="flex items-center gap-3 cursor-pointer">

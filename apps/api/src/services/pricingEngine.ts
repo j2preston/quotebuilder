@@ -127,7 +127,20 @@ export function calculateQuote(
     });
   }
 
-  // 9. Totals
+  // 9. Minimum charge — add a top-up line if total labour + materials falls below the floor
+  const provisionalSubtotal = roundMoney(lineItems.reduce((s, li) => s + li.total, 0));
+  if (rateCard.minimumCharge > 0 && provisionalSubtotal < rateCard.minimumCharge) {
+    const topUp = roundMoney(rateCard.minimumCharge - provisionalSubtotal);
+    lineItems.push({
+      description: 'Minimum job charge',
+      qty:         1,
+      unitPrice:   topUp,
+      total:       topUp,
+      sortOrder:   sortOrder++,
+    });
+  }
+
+  // 10. Totals
   const subtotal      = roundMoney(lineItems.reduce((s, li) => s + li.total, 0));
   const vatAmount     = rateCard.vatRegistered
     ? roundMoney(subtotal * rateCard.vatRate)

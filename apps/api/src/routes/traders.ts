@@ -13,6 +13,7 @@ const rateCardSchema = z.object({
   vatRegistered:       z.boolean().optional(),
   vatRate:             z.number().nonnegative('VAT rate must be non-negative').max(1, 'vatRate is a fraction (e.g. 0.20)').optional(),
   depositPercent:      z.number().nonnegative('Deposit must be non-negative').max(100, 'Deposit cannot exceed 100%').optional(),
+  minimumCharge:       z.number().nonnegative('Minimum charge must be non-negative').optional(),
 });
 
 const jobLibraryUpdateSchema = z.object({
@@ -78,6 +79,7 @@ function rowToRateCard(row: any) {
     vatRegistered:     row.vat_registered,
     vatRate:           Number(row.vat_rate),
     depositPercent:    Number(row.deposit_percent),
+    minimumCharge:     Number(row.minimum_charge ?? 0),
     updatedAt:         row.updated_at,
   };
 }
@@ -198,6 +200,7 @@ export async function traderRoutes(fastify: FastifyInstance) {
       vatRegistered:     'vat_registered',
       vatRate:           'vat_rate',
       depositPercent:    'deposit_percent',
+      minimumCharge:     'minimum_charge',
     };
 
     const setClauses: string[] = [];

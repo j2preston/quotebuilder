@@ -23,8 +23,9 @@ CREATE TABLE IF NOT EXISTS traders (
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Idempotent column add for existing databases
-ALTER TABLE traders ADD COLUMN IF NOT EXISTS onboarding_complete BOOLEAN NOT NULL DEFAULT FALSE;
+-- Idempotent column adds for existing databases
+ALTER TABLE traders    ADD COLUMN IF NOT EXISTS onboarding_complete BOOLEAN     NOT NULL DEFAULT FALSE;
+ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS minimum_charge      DECIMAL(10,2) NOT NULL DEFAULT 0;
 
 -- ─── Rate Cards ───────────────────────────────────────────────────────────────
 
@@ -38,6 +39,7 @@ CREATE TABLE IF NOT EXISTS rate_cards (
   vat_registered        BOOLEAN       NOT NULL DEFAULT FALSE,
   vat_rate              DECIMAL(5,4)  NOT NULL DEFAULT 0.20,
   deposit_percent       DECIMAL(5,2)  NOT NULL DEFAULT 0,
+  minimum_charge        DECIMAL(10,2) NOT NULL DEFAULT 0,
   updated_at            TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
   CONSTRAINT rate_cards_trader_id_unique UNIQUE (trader_id)
 );

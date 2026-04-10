@@ -47,11 +47,12 @@ export default function OnboardingPage() {
 
   // ── Step 1: Rates ──────────────────────────────────────────────────────────
   const [rates, setRates] = useState({
-    labourRate:    45,
-    callOutFee:    45,
-    markupPercent: 20,
-    vatRegistered: false,
+    labourRate:     45,
+    callOutFee:     45,
+    markupPercent:  20,
+    vatRegistered:  false,
     depositPercent: 30,
+    minimumCharge:  0,
   });
 
   const { data: rateCardData } = useQuery({
@@ -71,6 +72,7 @@ export default function OnboardingPage() {
         markupPercent:  rc.markupPercent,
         vatRegistered:  rc.vatRegistered,
         depositPercent: rc.depositPercent,
+        minimumCharge:  rc.minimumCharge,
       });
     }
   }, [rateCardData]);
@@ -254,6 +256,16 @@ export default function OnboardingPage() {
                     onChange={(e) => setRates((r) => ({ ...r, depositPercent: Number(e.target.value) }))}
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Minimum job charge (£)</label>
+                <input
+                  type="number" min={0} step={1}
+                  className="input"
+                  value={rates.minimumCharge}
+                  onChange={(e) => setRates((r) => ({ ...r, minimumCharge: Number(e.target.value) }))}
+                />
+                <p className="text-xs text-gray-400 mt-1">Quotes below this are topped up automatically. 0 = no minimum.</p>
               </div>
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
