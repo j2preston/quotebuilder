@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mic, MicOff, AlertCircle, ChevronRight } from 'lucide-react';
+import { Mic, MicOff, AlertCircle, ChevronRight, Info } from 'lucide-react';
 import { api } from '../lib/api.ts';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -143,6 +143,16 @@ export default function DitatePage() {
     <div className="flex flex-col items-center min-h-[calc(100vh-8rem)] pb-20">
       <div className="w-full max-w-sm mx-auto pt-8 space-y-8">
 
+        {/* Browser compatibility warning */}
+        {!SpeechRecognitionAPI && (
+          <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200">
+            <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+            <p className="text-sm text-amber-800">
+              Voice recording requires Chrome or Safari. You can still type a job description below.
+            </p>
+          </div>
+        )}
+
         {/* Title */}
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900">Dictate a Quote</h1>
@@ -245,8 +255,8 @@ export default function DitatePage() {
           </div>
         )}
 
-        {/* Record button */}
-        {(phase.kind === 'idle' || phase.kind === 'recording') && (
+        {/* Record button — hidden on unsupported browsers */}
+        {SpeechRecognitionAPI && (phase.kind === 'idle' || phase.kind === 'recording') && (
           <div className="flex flex-col items-center gap-4 pt-4">
             <button
               onPointerDown={handlePointerDown}
@@ -270,6 +280,26 @@ export default function DitatePage() {
                 ? 'Release to generate quote'
                 : 'Hold to record · release to submit'}
             </p>
+          </div>
+        )}
+
+        {/* Text fallback for unsupported browsers */}
+        {!SpeechRecognitionAPI && phase.kind === 'idle' && (
+          <div className="space-y-3">
+            <textarea
+              className="input min-h-[100px] resize-none w-full"
+              placeholder="Describe the job, e.g. &quot;Replace consumer unit at a 3-bed semi, standard urgency, customer Mrs Davies&quot;"
+              id="text-fallback"
+            />
+            <button
+              className="btn-primary w-full"
+              onClick={() => {
+                const el = document.getElementById('text-fallback') as HTMLTextAreaElement;
+                submitTranscript(el.value);
+              }}
+            >
+              <ChevronRight className="h-4 w-4" /> Generate quote
+            </button>
           </div>
         )}
 

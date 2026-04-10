@@ -604,7 +604,7 @@ export default function SettingsPage() {
           </p>
         </div>
         {trader?.plan !== 'pro' && (
-          <button className="btn-primary text-xs">Upgrade</button>
+          <span className="text-xs text-gray-400 italic">Upgrade coming soon</span>
         )}
       </div>
 

@@ -309,7 +309,7 @@ export default function QuoteDetailPage() {
   // Sync local line items when quote loads
   const items = lineItems ?? (quote?.lineItems ?? []);
 
-  const canEdit = !!quote && ['draft', 'sent'].includes(quote.status);
+  const canEdit = !!quote && quote.status === 'draft';
 
   const updateItem = useCallback((idx: number, patch: Partial<QuoteLineItem>) => {
     setLineItems((prev) => {
@@ -496,7 +496,10 @@ export default function QuoteDetailPage() {
         )}
 
         <button
-          onClick={() => generatePdf.mutate(id!, { onSuccess: (d) => window.open(d.pdfUrl) })}
+          onClick={() => generatePdf.mutate(id!, {
+            onSuccess: (d) => window.open(d.pdfUrl),
+            onError:   () => alert('PDF generation failed — please try again.'),
+          })}
           disabled={generatePdf.isPending}
           className="btn-secondary"
         >

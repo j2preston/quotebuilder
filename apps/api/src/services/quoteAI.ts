@@ -289,6 +289,13 @@ export async function generateQuote(
       );
     }
 
+    // Increment monthly usage counter (ignore if column doesn't exist)
+    await pgClient.query(
+      `UPDATE traders SET quotes_used_this_month = COALESCE(quotes_used_this_month, 0) + 1
+       WHERE id = $1`,
+      [traderId],
+    ).catch(() => { /* column may not exist on older schema — non-fatal */ });
+
     await pgClient.query('COMMIT');
     return { status: 'ready', quoteId };
   } catch (err) {
