@@ -13,6 +13,7 @@ export interface Trader {
   stripeCustomerId?: string | null;
   plan: Plan;
   quotesUsedThisMonth?: number;
+  onboardingComplete: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

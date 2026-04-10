@@ -18,9 +18,13 @@ CREATE TABLE IF NOT EXISTS traders (
   stripe_customer_id  TEXT,
   plan                TEXT        NOT NULL DEFAULT 'trial'
                         CHECK (plan IN ('trial', 'starter', 'pro')),
+  onboarding_complete BOOLEAN     NOT NULL DEFAULT FALSE,
   created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Idempotent column add for existing databases
+ALTER TABLE traders ADD COLUMN IF NOT EXISTS onboarding_complete BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- ─── Rate Cards ───────────────────────────────────────────────────────────────
 

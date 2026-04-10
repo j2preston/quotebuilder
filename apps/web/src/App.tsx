@@ -8,10 +8,19 @@ import QuotesPage from './pages/QuotesPage.tsx';
 import QuoteDetailPage from './pages/QuoteDetailPage.tsx';
 import DitatePage from './pages/DitatePage.tsx';
 import SettingsPage from './pages/SettingsPage.tsx';
+import OnboardingPage from './pages/OnboardingPage.tsx';
 
-function RequireAuth({ children }: { children: React.ReactNode }) {
+// Auth-only guard — used for onboarding (doesn't redirect to /onboarding)
+function RequireAuthOnly({ children }: { children: React.ReactNode }) {
   const { accessToken } = useAuthStore();
   if (!accessToken) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { accessToken, trader } = useAuthStore();
+  if (!accessToken) return <Navigate to="/login" replace />;
+  if (trader && !trader.onboardingComplete) return <Navigate to="/onboarding" replace />;
   return <>{children}</>;
 }
 
@@ -20,6 +29,7 @@ export default function App() {
     <Routes>
       <Route path="/login"    element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/onboarding" element={<RequireAuthOnly><OnboardingPage /></RequireAuthOnly>} />
       <Route
         path="/"
         element={

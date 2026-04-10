@@ -57,11 +57,12 @@ function rowToTrader(row: any) {
     trade:            row.trade,
     location:         row.location,
     email:            row.email,
-    whatsappNumber:   row.whatsapp_number ?? null,
-    stripeCustomerId: row.stripe_customer_id ?? null,
-    plan:             row.plan,
-    createdAt:        row.created_at,
-    updatedAt:        row.updated_at,
+    whatsappNumber:     row.whatsapp_number ?? null,
+    stripeCustomerId:   row.stripe_customer_id ?? null,
+    plan:               row.plan,
+    onboardingComplete: row.onboarding_complete ?? false,
+    createdAt:          row.created_at,
+    updatedAt:          row.updated_at,
   };
 }
 
@@ -400,6 +401,16 @@ export async function traderRoutes(fastify: FastifyInstance) {
     // Cascade deletes materials via FK
     await db.query('DELETE FROM job_library WHERE id = $1 AND trader_id = $2', [entryId, traderId]);
     return reply.code(204).send();
+  });
+
+  // ── POST /api/trader/onboarding/complete ─────────────────────────────────
+  fastify.post('/onboarding/complete', auth, async (req, reply) => {
+    const { traderId } = req.user;
+    const res = await db.query(
+      'UPDATE traders SET onboarding_complete = true WHERE id = $1 RETURNING *',
+      [traderId],
+    );
+    return reply.send({ trader: rowToTrader(res.rows[0]) });
   });
 
   // ── PUT /api/trader/job-library/:id/materials ─────────────────────────────

@@ -39,7 +39,7 @@ export default function RegisterPage() {
     onSuccess: (data) => {
       setTokens(data.token, '');
       setTrader(data.trader);
-      navigate('/dashboard');
+      navigate('/onboarding');
     },
   });
 

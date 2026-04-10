@@ -81,6 +81,19 @@ export function useUpdateJobMaterials() {
   });
 }
 
+// ─── Onboarding ───────────────────────────────────────────────────────────────
+
+export function useCompleteOnboarding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post('/trader/onboarding/complete');
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['trader', 'me'] }),
+  });
+}
+
 // ─── Profile ──────────────────────────────────────────────────────────────────
 
 export function useUpdateProfile() {
