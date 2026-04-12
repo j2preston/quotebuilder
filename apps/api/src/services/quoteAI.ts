@@ -315,8 +315,8 @@ export async function saveConfirmedQuote(
     const insertQuote = await pgClient.query(
       `INSERT INTO quotes
          (trader_id, customer_name, customer_whatsapp, status,
-          subtotal, vat_amount, total, deposit_amount, notes)
-       VALUES ($1, $2, $3, 'draft', $4, $5, $6, $7, $8)
+          subtotal, vat_amount, total, deposit_amount, notes, job_key)
+       VALUES ($1, $2, $3, 'draft', $4, $5, $6, $7, $8, $9)
        RETURNING id`,
       [
         traderId,
@@ -327,6 +327,7 @@ export async function saveConfirmedQuote(
         calculation.total,
         calculation.depositAmount,
         quoteNotes,
+        fields.jobKey || null,
       ],
     );
 

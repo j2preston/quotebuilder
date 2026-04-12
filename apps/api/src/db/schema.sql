@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS traders (
 ALTER TABLE traders    ADD COLUMN IF NOT EXISTS onboarding_complete BOOLEAN     NOT NULL DEFAULT FALSE;
 ALTER TABLE traders    ADD COLUMN IF NOT EXISTS postcode            TEXT;
 ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS minimum_charge      DECIMAL(10,2) NOT NULL DEFAULT 0;
+ALTER TABLE quotes     ADD COLUMN IF NOT EXISTS job_key             TEXT;
 
 -- ─── Rate Cards ───────────────────────────────────────────────────────────────
 
@@ -109,6 +110,7 @@ CREATE TABLE IF NOT EXISTS quotes (
   deposit_amount    DECIMAL(10,2) NOT NULL DEFAULT 0,
   pdf_url           TEXT,
   notes             TEXT,
+  job_key           TEXT,
   created_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
   updated_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );

@@ -108,12 +108,17 @@ export function useSendQuote() {
   });
 }
 
+export type CorrectionResult =
+  | { status: 'calibrated'; jobLabel: string; oldHours: number; newHours: number; corrections: number }
+  | { status: 'logged'; jobLabel?: string; correctionCount: number; neededToCalibrate: number };
+
 export function useLogCorrection() {
   return useMutation({
     mutationFn: async ({
       quoteId, jobKey, field, oldValue, newValue, reason,
-    }: { quoteId: string; jobKey: string; field: string; oldValue: number; newValue: number; reason: string }) => {
-      await api.post(`/quotes/${quoteId}/corrections`, { jobKey, field, oldValue, newValue, reason });
+    }: { quoteId: string; jobKey: string; field: string; oldValue: number; newValue: number; reason: string }): Promise<CorrectionResult> => {
+      const { data } = await api.post(`/quotes/${quoteId}/corrections`, { jobKey, field, oldValue, newValue, reason });
+      return data as CorrectionResult;
     },
   });
 }

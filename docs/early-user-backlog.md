@@ -22,9 +22,9 @@ Ordered by impact on first impressions and quote accuracy.
 - [x] **Extract-then-confirm on dictate page** — after AI extraction, show trader a summary card (job, property, urgency, customer) to confirm or correct before pricing runs. Teaches traders what to include and catches misidentification before a wrong quote is created
 - [x] **Property/urgency quick-tap chips on dictate page** — covered by the confirmation card: property and urgency shown as tap-to-select chips before pricing runs
 - [x] **Customer WhatsApp: structured first response with gaps** — extracts fields from first message, replies with ✅/❓ summary. Quotes immediately if name + job captured; max 2 rounds before quoting with defaults
-- [ ] **Surface the calibration loop** — after corrections, show "Your average for EV charger is now 3.5hrs (updated from 4hrs)" so trader trusts it's learning
+- [x] **Surface the calibration loop** — after hour corrections, shows green "Estimate updated to Xhrs" banner (calibrated) or blue "X/3 corrections logged" progress (in-progress)
 - [ ] **Material cost refresh prompt** — flag in settings when material costs haven't been reviewed in 90 days
-- [ ] **Travel distance input** — travel rate per mile exists in the rate card but distance is AI-inferred from transcript; add an explicit distance field (or postcode lookup) on the dictate page so it is never guessed
+- [x] **Travel distance input** — postcode lookup in confirmation card; computes Haversine distance via postcodes.io. Trader postcode stored in profile/onboarding.
 - [ ] **Extraction fallback defaults** — when AI cannot confidently extract a field, apply a trader-configured default rather than failing or guessing. Defaults set in Settings: property type (e.g. "House"), urgency (e.g. "Standard"), distance (e.g. 0). Shown as pre-filled values in the extract-then-confirm card so trader can override before the quote runs — no field is ever left blank silently
 ---
 

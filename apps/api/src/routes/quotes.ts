@@ -69,6 +69,7 @@ function rowToQuoteHeader(row: any) {
     depositAmount:    Number(row.deposit_amount),
     pdfUrl:           row.pdf_url   ?? null,
     notes:            row.notes     ?? null,
+    jobKey:           row.job_key   ?? null,
     createdAt:        row.created_at,
     updatedAt:        row.updated_at,
   };
@@ -511,31 +512,45 @@ export async function quoteRoutes(fastify: FastifyInstance) {
 
     // Store in job_library corrections (update labourHours if 3+ consistent corrections)
     const libEntry = await db.query(
-      'SELECT id, labour_hours, correction_count FROM job_library WHERE trader_id = $1 AND job_key = $2',
+      'SELECT id, label, labour_hours, correction_count FROM job_library WHERE trader_id = $1 AND job_key = $2',
       [traderId, body.jobKey],
     );
 
     if (libEntry.rows[0]) {
       const entry = libEntry.rows[0];
       const count = (entry.correction_count ?? 0) + 1;
+      const jobLabel: string = entry.label ?? body.jobKey;
 
       // After 3 corrections in the same direction, auto-update the labour hours
       if (count >= 3 && body.reason !== 'other') {
-        const avg = body.newValue; // simplified — use latest correction value
+        const newHours = body.newValue;
+        const oldHours = Number(entry.labour_hours);
         await db.query(
           `UPDATE job_library SET labour_hours = $1, correction_count = $2, is_custom = true, updated_at = NOW()
            WHERE id = $3`,
-          [avg, count, entry.id],
+          [newHours, count, entry.id],
         );
-        return reply.send({ status: 'calibrated', newHours: avg, corrections: count });
+        return reply.send({
+          status:    'calibrated',
+          jobLabel,
+          oldHours,
+          newHours,
+          corrections: count,
+        });
       } else {
         await db.query(
           'UPDATE job_library SET correction_count = $1 WHERE id = $2',
           [count, entry.id],
         );
+        return reply.send({
+          status:           'logged',
+          jobLabel,
+          correctionCount:  count,
+          neededToCalibrate: 3,
+        });
       }
     }
 
-    return reply.send({ status: 'logged' });
+    return reply.send({ status: 'logged', correctionCount: 1, neededToCalibrate: 3 });
   });
 }

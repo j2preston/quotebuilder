@@ -83,6 +83,7 @@ export interface Quote {
   depositAmount: number; // £
   pdfUrl?: string;
   notes?: string;
+  jobKey?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
