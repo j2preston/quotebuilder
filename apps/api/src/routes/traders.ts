@@ -14,6 +14,9 @@ const rateCardSchema = z.object({
   vatRate:             z.number().nonnegative('VAT rate must be non-negative').max(1, 'vatRate is a fraction (e.g. 0.20)').optional(),
   depositPercent:      z.number().nonnegative('Deposit must be non-negative').max(100, 'Deposit cannot exceed 100%').optional(),
   minimumCharge:       z.number().nonnegative('Minimum charge must be non-negative').optional(),
+  defaultPropertyType: z.enum(['house','flat_ground','flat_upper','commercial','new_build']).optional(),
+  defaultUrgency:      z.enum(['standard','next_day','same_day']).optional(),
+  defaultDistanceMiles: z.number().nonnegative().optional(),
 });
 
 const jobLibraryUpdateSchema = z.object({
@@ -58,13 +61,14 @@ function rowToTrader(row: any) {
     trade:            row.trade,
     location:         row.location,
     email:            row.email,
-    whatsappNumber:     row.whatsapp_number ?? null,
-    stripeCustomerId:   row.stripe_customer_id ?? null,
-    postcode:           row.postcode ?? null,
-    plan:               row.plan,
-    onboardingComplete: row.onboarding_complete ?? false,
-    createdAt:          row.created_at,
-    updatedAt:          row.updated_at,
+    whatsappNumber:      row.whatsapp_number ?? null,
+    stripeCustomerId:    row.stripe_customer_id ?? null,
+    postcode:            row.postcode ?? null,
+    plan:                row.plan,
+    onboardingComplete:  row.onboarding_complete ?? false,
+    materialsReviewedAt: row.materials_reviewed_at ?? null,
+    createdAt:           row.created_at,
+    updatedAt:           row.updated_at,
   };
 }
 
@@ -80,8 +84,11 @@ function rowToRateCard(row: any) {
     vatRegistered:     row.vat_registered,
     vatRate:           Number(row.vat_rate),
     depositPercent:    Number(row.deposit_percent),
-    minimumCharge:     Number(row.minimum_charge ?? 0),
-    updatedAt:         row.updated_at,
+    minimumCharge:        Number(row.minimum_charge ?? 0),
+    defaultPropertyType:  (row.default_property_type ?? 'house') as import('@quotebot/shared').PropertyType,
+    defaultUrgency:       (row.default_urgency ?? 'standard') as import('@quotebot/shared').Urgency,
+    defaultDistanceMiles: Number(row.default_distance_miles ?? 0),
+    updatedAt:            row.updated_at,
   };
 }
 
@@ -203,7 +210,10 @@ export async function traderRoutes(fastify: FastifyInstance) {
       vatRegistered:     'vat_registered',
       vatRate:           'vat_rate',
       depositPercent:    'deposit_percent',
-      minimumCharge:     'minimum_charge',
+      minimumCharge:        'minimum_charge',
+      defaultPropertyType:  'default_property_type',
+      defaultUrgency:       'default_urgency',
+      defaultDistanceMiles: 'default_distance_miles',
     };
 
     const setClauses: string[] = [];
@@ -463,6 +473,12 @@ export async function traderRoutes(fastify: FastifyInstance) {
 
       await pgClient.query('COMMIT');
 
+      // Touch materials_reviewed_at outside transaction — non-fatal
+      await db.query(
+        'UPDATE traders SET materials_reviewed_at = NOW() WHERE id = $1',
+        [traderId],
+      ).catch(() => { /* non-fatal */ });
+
       const entryRes = await db.query('SELECT * FROM job_library WHERE id = $1', [entryId]);
       return reply.send({ jobEntry: rowToJobEntry(entryRes.rows[0], insertedMaterials) });
     } catch (err) {
@@ -471,5 +487,16 @@ export async function traderRoutes(fastify: FastifyInstance) {
     } finally {
       pgClient.release();
     }
+  });
+
+  // ── POST /api/trader/materials/reviewed ──────────────────────────────────
+  // Trader manually confirms all material costs are up to date
+  fastify.post('/materials/reviewed', auth, async (req, reply) => {
+    const { traderId } = req.user;
+    await db.query(
+      'UPDATE traders SET materials_reviewed_at = NOW() WHERE id = $1',
+      [traderId],
+    );
+    return reply.send({ materialsReviewedAt: new Date() });
   });
 }

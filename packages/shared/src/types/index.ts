@@ -15,6 +15,7 @@ export interface Trader {
   plan: Plan;
   quotesUsedThisMonth?: number;
   onboardingComplete: boolean;
+  materialsReviewedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,7 +32,10 @@ export interface RateCard {
   vatRegistered: boolean;
   vatRate: number;          // e.g. 0.20
   depositPercent: number;   // e.g. 25 for 25%
-  minimumCharge: number;    // £ — 0 means no minimum
+  minimumCharge: number;         // £ — 0 means no minimum
+  defaultPropertyType: PropertyType;
+  defaultUrgency: Urgency;
+  defaultDistanceMiles: number;
   updatedAt: Date;
 }
 
@@ -175,4 +179,7 @@ export interface UpdateRateCardRequest {
   vatRate?: number;
   depositPercent?: number;
   minimumCharge?: number;
+  defaultPropertyType?: string;
+  defaultUrgency?: string;
+  defaultDistanceMiles?: number;
 }

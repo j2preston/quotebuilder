@@ -18,17 +18,22 @@ CREATE TABLE IF NOT EXISTS traders (
   stripe_customer_id  TEXT,
   plan                TEXT        NOT NULL DEFAULT 'trial'
                         CHECK (plan IN ('trial', 'starter', 'pro')),
-  onboarding_complete BOOLEAN     NOT NULL DEFAULT FALSE,
-  postcode            TEXT,
-  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  onboarding_complete   BOOLEAN     NOT NULL DEFAULT FALSE,
+  postcode              TEXT,
+  materials_reviewed_at TIMESTAMPTZ,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Idempotent column adds for existing databases
-ALTER TABLE traders    ADD COLUMN IF NOT EXISTS onboarding_complete BOOLEAN     NOT NULL DEFAULT FALSE;
-ALTER TABLE traders    ADD COLUMN IF NOT EXISTS postcode            TEXT;
-ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS minimum_charge      DECIMAL(10,2) NOT NULL DEFAULT 0;
-ALTER TABLE quotes     ADD COLUMN IF NOT EXISTS job_key             TEXT;
+ALTER TABLE traders    ADD COLUMN IF NOT EXISTS onboarding_complete    BOOLEAN     NOT NULL DEFAULT FALSE;
+ALTER TABLE traders    ADD COLUMN IF NOT EXISTS postcode               TEXT;
+ALTER TABLE traders    ADD COLUMN IF NOT EXISTS materials_reviewed_at  TIMESTAMPTZ;
+ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS minimum_charge         DECIMAL(10,2) NOT NULL DEFAULT 0;
+ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS default_property_type  TEXT NOT NULL DEFAULT 'house';
+ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS default_urgency        TEXT NOT NULL DEFAULT 'standard';
+ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS default_distance_miles DECIMAL(8,2) NOT NULL DEFAULT 0;
+ALTER TABLE quotes     ADD COLUMN IF NOT EXISTS job_key                TEXT;
 
 -- ─── Rate Cards ───────────────────────────────────────────────────────────────
 
@@ -42,8 +47,11 @@ CREATE TABLE IF NOT EXISTS rate_cards (
   vat_registered        BOOLEAN       NOT NULL DEFAULT FALSE,
   vat_rate              DECIMAL(5,4)  NOT NULL DEFAULT 0.20,
   deposit_percent       DECIMAL(5,2)  NOT NULL DEFAULT 0,
-  minimum_charge        DECIMAL(10,2) NOT NULL DEFAULT 0,
-  updated_at            TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  minimum_charge         DECIMAL(10,2) NOT NULL DEFAULT 0,
+  default_property_type  TEXT          NOT NULL DEFAULT 'house',
+  default_urgency        TEXT          NOT NULL DEFAULT 'standard',
+  default_distance_miles DECIMAL(8,2)  NOT NULL DEFAULT 0,
+  updated_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
   CONSTRAINT rate_cards_trader_id_unique UNIQUE (trader_id)
 );
 

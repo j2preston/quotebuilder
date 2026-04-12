@@ -73,9 +73,10 @@ function rowToTrader(row: any) {
     postcode:            row.postcode ?? null,
     plan:                row.plan ?? 'trial',
     quotesUsedThisMonth: row.quotes_used_this_month ?? 0,
-    onboardingComplete:  row.onboarding_complete ?? false,
-    createdAt:           row.created_at,
-    updatedAt:           row.updated_at,
+    onboardingComplete:   row.onboarding_complete ?? false,
+    materialsReviewedAt:  row.materials_reviewed_at ?? null,
+    createdAt:            row.created_at,
+    updatedAt:            row.updated_at,
   };
 }
 
@@ -91,7 +92,10 @@ function rowToRateCard(row: any) {
     vatRegistered:      row.vat_registered,
     vatRate:            Number(row.vat_rate),
     depositPercent:     Number(row.deposit_percent),
-    minimumCharge:      Number(row.minimum_charge ?? 0),
+    minimumCharge:        Number(row.minimum_charge ?? 0),
+    defaultPropertyType:  (row.default_property_type ?? 'house') as import('@quotebot/shared').PropertyType,
+    defaultUrgency:       (row.default_urgency ?? 'standard') as import('@quotebot/shared').Urgency,
+    defaultDistanceMiles: Number(row.default_distance_miles ?? 0),
     updatedAt:          row.updated_at,
   };
 }

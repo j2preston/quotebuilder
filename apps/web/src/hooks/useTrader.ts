@@ -94,6 +94,19 @@ export function useCompleteOnboarding() {
   });
 }
 
+// ─── Materials reviewed ───────────────────────────────────────────────────────
+
+export function useMarkMaterialsReviewed() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post('/trader/materials/reviewed');
+      return data as { materialsReviewedAt: string };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['trader', 'me'] }),
+  });
+}
+
 // ─── Profile ──────────────────────────────────────────────────────────────────
 
 export function useUpdateProfile() {

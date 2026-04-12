@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import {
   ChevronDown, ChevronUp, ToggleLeft, ToggleRight,
-  LogOut, Zap, Plus, Trash2, ChevronRight, X, Check,
+  LogOut, Zap, Plus, Trash2, ChevronRight, X, Check, AlertCircle,
 } from 'lucide-react';
 import { useAuthStore } from '../store/auth.ts';
 import {
   useRateCard, useUpdateRateCard,
   useJobLibrary, useUpdateJobEntry, useCreateJobEntry, useDeleteJobEntry, useUpdateJobMaterials,
+  useMarkMaterialsReviewed,
   useUpdateProfile,
 } from '../hooks/useTrader.ts';
 import { api } from '../lib/api.ts';
@@ -368,8 +369,14 @@ function AddJobForm({ onDone }: { onDone: () => void }) {
 
 function JobLibrarySection() {
   const { data: entries = [], isLoading } = useJobLibrary();
-  const updateEntry   = useUpdateJobEntry();
-  const deleteEntry   = useDeleteJobEntry();
+  const updateEntry          = useUpdateJobEntry();
+  const deleteEntry          = useDeleteJobEntry();
+  const markReviewed         = useMarkMaterialsReviewed();
+  const { trader }           = useAuthStore();
+
+  const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+  const reviewedAt     = trader?.materialsReviewedAt ? new Date(trader.materialsReviewedAt) : null;
+  const needsReview    = !reviewedAt || (Date.now() - reviewedAt.getTime() > NINETY_DAYS_MS);
   const [editingHoursId, setEditingHoursId]       = useState<string | null>(null);
   const [hoursDraft, setHoursDraft]               = useState('');
   const [expandedMatsId, setExpandedMatsId]       = useState<string | null>(null);
@@ -404,6 +411,26 @@ function JobLibrarySection() {
 
   return (
     <div className="pt-4 space-y-3">
+      {/* Material cost review prompt */}
+      {needsReview && (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200">
+          <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-amber-800">
+              {reviewedAt ? 'Material costs not reviewed in 90+ days' : 'Material costs not yet reviewed'}
+            </p>
+            <p className="text-xs text-amber-600 mt-0.5">Check prices haven't changed before your next quote.</p>
+          </div>
+          <button
+            onClick={() => markReviewed.mutate()}
+            disabled={markReviewed.isPending}
+            className="shrink-0 text-xs font-medium text-amber-700 hover:text-amber-900 underline"
+          >
+            {markReviewed.isPending ? 'Saving…' : 'Mark reviewed'}
+          </button>
+        </div>
+      )}
+
       {showAddForm ? (
         <AddJobForm onDone={() => setShowAddForm(false)} />
       ) : (

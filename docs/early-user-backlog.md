@@ -23,9 +23,9 @@ Ordered by impact on first impressions and quote accuracy.
 - [x] **Property/urgency quick-tap chips on dictate page** — covered by the confirmation card: property and urgency shown as tap-to-select chips before pricing runs
 - [x] **Customer WhatsApp: structured first response with gaps** — extracts fields from first message, replies with ✅/❓ summary. Quotes immediately if name + job captured; max 2 rounds before quoting with defaults
 - [x] **Surface the calibration loop** — after hour corrections, shows green "Estimate updated to Xhrs" banner (calibrated) or blue "X/3 corrections logged" progress (in-progress)
-- [ ] **Material cost refresh prompt** — flag in settings when material costs haven't been reviewed in 90 days
+- [x] **Material cost refresh prompt** — amber banner in Settings → Job Library when material costs haven't been reviewed in 90 days; auto-cleared when materials are saved, or manually via "Mark reviewed" button
 - [x] **Travel distance input** — postcode lookup in confirmation card; computes Haversine distance via postcodes.io. Trader postcode stored in profile/onboarding.
-- [ ] **Extraction fallback defaults** — when AI cannot confidently extract a field, apply a trader-configured default rather than failing or guessing. Defaults set in Settings: property type (e.g. "House"), urgency (e.g. "Standard"), distance (e.g. 0). Shown as pre-filled values in the extract-then-confirm card so trader can override before the quote runs — no field is ever left blank silently
+- [x] **Extraction fallback defaults** — when AI cannot confidently extract a field, apply a trader-configured default rather than failing or guessing. Defaults set in Settings: property type (e.g. "House"), urgency (e.g. "Standard"), distance (e.g. 0). Shown as pre-filled values in the extract-then-confirm card so trader can override before the quote runs — no field is ever left blank silently
 ---
 
 ## P2 — Reliability and correctness
