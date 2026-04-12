@@ -70,6 +70,7 @@ function rowToTrader(row: any) {
     email:            row.email,
     whatsappNumber:      row.whatsapp_number ?? null,
     stripeCustomerId:    row.stripe_customer_id ?? null,
+    postcode:            row.postcode ?? null,
     plan:                row.plan ?? 'trial',
     quotesUsedThisMonth: row.quotes_used_this_month ?? 0,
     onboardingComplete:  row.onboarding_complete ?? false,

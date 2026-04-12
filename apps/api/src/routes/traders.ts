@@ -60,6 +60,7 @@ function rowToTrader(row: any) {
     email:            row.email,
     whatsappNumber:     row.whatsapp_number ?? null,
     stripeCustomerId:   row.stripe_customer_id ?? null,
+    postcode:           row.postcode ?? null,
     plan:               row.plan,
     onboardingComplete: row.onboarding_complete ?? false,
     createdAt:          row.created_at,
@@ -136,6 +137,7 @@ export async function traderRoutes(fastify: FastifyInstance) {
       businessName:   z.string().min(1).optional(),
       trade:          z.string().min(1).optional(),
       location:       z.string().optional(),
+      postcode:       z.string().nullable().optional(),
       whatsappNumber: z.string().nullable().optional(),
     });
 
@@ -152,6 +154,7 @@ export async function traderRoutes(fastify: FastifyInstance) {
       businessName:   'business_name',
       trade:          'trade',
       location:       'location',
+      postcode:       'postcode',
       whatsappNumber: 'whatsapp_number',
     };
 

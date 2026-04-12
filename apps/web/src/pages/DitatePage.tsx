@@ -1,7 +1,29 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mic, MicOff, AlertCircle, ChevronRight, Info, CheckCircle2, Edit2 } from 'lucide-react';
+import { Mic, MicOff, AlertCircle, ChevronRight, Info, CheckCircle2, Edit2, MapPin, Loader2 } from 'lucide-react';
 import { api } from '../lib/api.ts';
+import { useAuthStore } from '../store/auth.ts';
+
+// ─── Postcode distance utilities ─────────────────────────────────────────────
+
+async function lookupPostcodeLatLng(postcode: string): Promise<{ lat: number; lng: number }> {
+  const clean = postcode.replace(/\s+/g, '').toUpperCase();
+  const res = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(clean)}`);
+  if (!res.ok) throw new Error(`Invalid postcode: ${postcode}`);
+  const data = await res.json() as { result: { latitude: number; longitude: number } };
+  return { lat: data.result.latitude, lng: data.result.longitude };
+}
+
+function haversineMiles(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 3958.8;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -69,6 +91,7 @@ const SpeechRecognitionAPI: (new () => SR) | undefined = (window as any).SpeechR
 
 export default function DitatePage() {
   const navigate = useNavigate();
+  const trader   = useAuthStore((s) => s.trader);
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
   const [clarificationAnswer, setClarificationAnswer] = useState('');
 
@@ -274,6 +297,7 @@ export default function DitatePage() {
           <ConfirmationCard
             fields={phase.fields}
             availableJobs={phase.availableJobs}
+            traderPostcode={trader?.postcode ?? null}
             onConfirm={confirmQuote}
             onRetry={() => setPhase({ kind: 'idle' })}
           />
@@ -393,11 +417,13 @@ export default function DitatePage() {
 function ConfirmationCard({
   fields: initialFields,
   availableJobs,
+  traderPostcode,
   onConfirm,
   onRetry,
 }: {
   fields: ExtractedFields;
   availableJobs: AvailableJob[];
+  traderPostcode: string | null;
   onConfirm: (fields: ExtractedFields) => void;
   onRetry: () => void;
 }) {
@@ -413,6 +439,36 @@ function ConfirmationCard({
         : [...f.complexityFlags, flag],
     }));
   };
+
+  // Postcode lookup state
+  const [customerPostcode, setCustomerPostcode] = useState('');
+  const [lookingUp,        setLookingUp]        = useState(false);
+  const [lookupError,      setLookupError]       = useState<string | null>(null);
+  const [lookedUpMiles,    setLookedUpMiles]     = useState<number | null>(initialFields.distanceMiles > 0 ? initialFields.distanceMiles : null);
+
+  async function handlePostcodeLookup() {
+    const customer = customerPostcode.trim();
+    if (!customer) return;
+    if (!traderPostcode) {
+      setLookupError('Add your postcode in Settings first to enable distance calculation.');
+      return;
+    }
+    setLookingUp(true);
+    setLookupError(null);
+    try {
+      const [from, to] = await Promise.all([
+        lookupPostcodeLatLng(traderPostcode),
+        lookupPostcodeLatLng(customer),
+      ]);
+      const miles = Math.round(haversineMiles(from.lat, from.lng, to.lat, to.lng) * 10) / 10;
+      setLookedUpMiles(miles);
+      set('distanceMiles', miles);
+    } catch {
+      setLookupError('Postcode not found — check the postcode and try again.');
+    } finally {
+      setLookingUp(false);
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -496,32 +552,64 @@ function ConfirmationCard({
         />
       </div>
 
-      {/* Distance + call-out in a row */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Distance (mi)</label>
+      {/* Travel distance — postcode lookup */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-1">
+          <MapPin className="h-3 w-3" /> Customer postcode
+        </label>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={customerPostcode}
+            onChange={(e) => { setCustomerPostcode(e.target.value.toUpperCase()); setLookupError(null); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') void handlePostcodeLookup(); }}
+            className="input flex-1 text-sm"
+            placeholder="SW1A 1AA"
+            style={{ textTransform: 'uppercase' }}
+          />
+          <button
+            onClick={() => void handlePostcodeLookup()}
+            disabled={!customerPostcode.trim() || lookingUp}
+            className="btn-secondary text-sm px-3 shrink-0"
+          >
+            {lookingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Look up'}
+          </button>
+        </div>
+        {lookupError && <p className="text-xs text-red-500">{lookupError}</p>}
+        {lookedUpMiles !== null && !lookupError && (
+          <p className="text-xs text-brand-700 font-medium">
+            <CheckCircle2 className="h-3 w-3 inline mr-1" />
+            {lookedUpMiles} miles — travel cost calculated automatically
+          </p>
+        )}
+        {/* Manual override */}
+        <div className="flex items-center gap-2 pt-1">
+          <span className="text-xs text-gray-400">Manual override:</span>
           <input
             type="number"
             min={0}
             step={0.5}
             value={fields.distanceMiles}
-            onChange={(e) => set('distanceMiles', parseFloat(e.target.value) || 0)}
-            className="input w-full"
+            onChange={(e) => { set('distanceMiles', parseFloat(e.target.value) || 0); setLookedUpMiles(parseFloat(e.target.value) || 0); }}
+            className="input w-24 text-sm py-1"
           />
+          <span className="text-xs text-gray-400">mi</span>
         </div>
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Call-out fee</label>
-          <button
-            onClick={() => set('includeCallOut', !fields.includeCallOut)}
-            className={`w-full py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
-              fields.includeCallOut
-                ? 'bg-brand-700 text-white border-brand-700'
-                : 'bg-white text-gray-600 border-gray-300 hover:border-brand-400'
-            }`}
-          >
-            {fields.includeCallOut ? <><CheckCircle2 className="h-4 w-4 inline mr-1" />Included</> : 'Not included'}
-          </button>
-        </div>
+      </div>
+
+      {/* Call-out fee */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Call-out fee</label>
+        <button
+          onClick={() => set('includeCallOut', !fields.includeCallOut)}
+          className={`w-full py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
+            fields.includeCallOut
+              ? 'bg-brand-700 text-white border-brand-700'
+              : 'bg-white text-gray-600 border-gray-300 hover:border-brand-400'
+          }`}
+        >
+          {fields.includeCallOut ? <><CheckCircle2 className="h-4 w-4 inline mr-1" />Included</> : 'Not included'}
+        </button>
       </div>
 
       {/* Complexity flags */}

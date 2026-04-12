@@ -19,12 +19,14 @@ CREATE TABLE IF NOT EXISTS traders (
   plan                TEXT        NOT NULL DEFAULT 'trial'
                         CHECK (plan IN ('trial', 'starter', 'pro')),
   onboarding_complete BOOLEAN     NOT NULL DEFAULT FALSE,
+  postcode            TEXT,
   created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Idempotent column adds for existing databases
 ALTER TABLE traders    ADD COLUMN IF NOT EXISTS onboarding_complete BOOLEAN     NOT NULL DEFAULT FALSE;
+ALTER TABLE traders    ADD COLUMN IF NOT EXISTS postcode            TEXT;
 ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS minimum_charge      DECIMAL(10,2) NOT NULL DEFAULT 0;
 
 -- ─── Rate Cards ───────────────────────────────────────────────────────────────

@@ -38,13 +38,14 @@ function ProfileSection() {
   const { trader, setTrader } = useAuthStore();
   const updateProfile = useUpdateProfile();
 
-  type Form = { name: string; businessName: string; trade: string; location: string; whatsappNumber: string };
+  type Form = { name: string; businessName: string; trade: string; location: string; postcode: string; whatsappNumber: string };
   const { register, handleSubmit, formState: { isDirty, errors } } = useForm<Form>({
     defaultValues: {
       name:           trader?.name ?? '',
       businessName:   trader?.businessName ?? '',
       trade:          trader?.trade ?? '',
       location:       trader?.location ?? '',
+      postcode:       trader?.postcode ?? '',
       whatsappNumber: trader?.whatsappNumber ?? '',
     },
   });
@@ -71,6 +72,9 @@ function ProfileSection() {
           <input {...register('location')} className="input" placeholder="Manchester" />
         </Field>
       </div>
+      <Field label="Your postcode" hint="Used to calculate travel distance on quotes">
+        <input {...register('postcode')} className="input" placeholder="M1 1AA" style={{ textTransform: 'uppercase' }} />
+      </Field>
       <Field label="WhatsApp" hint="+44...">
         <input {...register('whatsappNumber')} type="tel" className="input" placeholder="+447700900000" />
       </Field>

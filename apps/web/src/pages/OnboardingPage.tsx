@@ -53,7 +53,8 @@ export default function OnboardingPage() {
   const [addingJob,     setAddingJob]     = useState(false);
   const [addJobError,   setAddJobError]   = useState<string | null>(null);
 
-  // ── Step 1: Rates ──────────────────────────────────────────────────────────
+  // ── Step 1: Rates + postcode ───────────────────────────────────────────────
+  const [postcode, setPostcode] = useState(trader?.postcode ?? '');
   const [rates, setRates] = useState({
     labourRate:     45,
     callOutFee:     45,
@@ -179,7 +180,10 @@ export default function OnboardingPage() {
     setSaving(true);
     try {
       if (step === 'rates') {
-        await api.put('/trader/rate-card', rates);
+        await Promise.all([
+          api.put('/trader/rate-card', rates),
+          postcode.trim() ? api.put('/trader/profile', { postcode: postcode.trim().toUpperCase() }) : Promise.resolve(),
+        ]);
         setStep('jobs');
       } else if (step === 'jobs') {
         await Promise.all(
@@ -321,6 +325,18 @@ export default function OnboardingPage() {
                   onChange={(e) => setRates((r) => ({ ...r, minimumCharge: Number(e.target.value) }))}
                 />
                 <p className="text-xs text-gray-400 mt-1">Quotes below this are topped up automatically. 0 = no minimum.</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Your postcode</label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="M1 1AA"
+                  value={postcode}
+                  onChange={(e) => setPostcode(e.target.value.toUpperCase())}
+                  style={{ textTransform: 'uppercase' }}
+                />
+                <p className="text-xs text-gray-400 mt-1">Used to calculate travel distance on every quote.</p>
               </div>
               <label className="flex items-center gap-3 cursor-pointer">
                 <input

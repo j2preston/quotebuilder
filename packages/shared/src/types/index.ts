@@ -11,6 +11,7 @@ export interface Trader {
   email: string;
   whatsappNumber?: string | null;
   stripeCustomerId?: string | null;
+  postcode?: string | null;
   plan: Plan;
   quotesUsedThisMonth?: number;
   onboardingComplete: boolean;
