@@ -21,17 +21,7 @@ Ordered by impact on first impressions and quote accuracy.
 - [x] **Add minimum charge to rate card** — prevents embarrassingly low quotes on short jobs (e.g. 15-min callout quoting £12 labour)
 - [x] **Extract-then-confirm on dictate page** — after AI extraction, show trader a summary card (job, property, urgency, customer) to confirm or correct before pricing runs. Teaches traders what to include and catches misidentification before a wrong quote is created
 - [x] **Property/urgency quick-tap chips on dictate page** — covered by the confirmation card: property and urgency shown as tap-to-select chips before pricing runs
-- [ ] **Customer WhatsApp: structured first response with gaps** — on first contact, immediately reply with a pre-filled summary showing what was understood and explicit placeholders for anything missing, e.g:
-  ```
-  Hi Dave! Here's what I have so far:
-  ✅ Job: EV Charger Installation
-  ✅ Your name: Dave
-  ❓ Property type: [house / flat / commercial?]
-  ❓ Timing: [standard / next day / same day?]
-
-  Reply with the missing details and I'll get your quote ready.
-  ```
-  One message replaces the current multi-turn interrogation. Customer sees confidence in what was captured and only fills in the gaps — faster, clearer, fewer drop-offs
+- [x] **Customer WhatsApp: structured first response with gaps** — extracts fields from first message, replies with ✅/❓ summary. Quotes immediately if name + job captured; max 2 rounds before quoting with defaults
 - [ ] **Surface the calibration loop** — after corrections, show "Your average for EV charger is now 3.5hrs (updated from 4hrs)" so trader trusts it's learning
 - [ ] **Material cost refresh prompt** — flag in settings when material costs haven't been reviewed in 90 days
 - [ ] **Travel distance input** — travel rate per mile exists in the rate card but distance is AI-inferred from transcript; add an explicit distance field (or postcode lookup) on the dictate page so it is never guessed
