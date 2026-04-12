@@ -89,17 +89,20 @@ function RateCardSection() {
   const { data: rc } = useRateCard();
   const updateRc = useUpdateRateCard();
 
-  type Form = { labourRate: number; callOutFee: number; travelRatePerMile: number; markupPercent: number; vatRegistered: boolean; vatRate: number; depositPercent: number; minimumCharge: number };
+  type Form = { labourRate: number; callOutFee: number; travelRatePerMile: number; markupPercent: number; vatRegistered: boolean; vatRate: number; depositPercent: number; minimumCharge: number; defaultPropertyType: string; defaultUrgency: string; defaultDistanceMiles: number };
   const { register, handleSubmit, formState: { isDirty } } = useForm<Form>({
     defaultValues: {
-      labourRate:        rc?.labourRate        ?? 45,
-      callOutFee:        rc?.callOutFee        ?? 0,
-      travelRatePerMile: rc?.travelRatePerMile ?? 0.45,
-      markupPercent:     rc?.markupPercent     ?? 20,
-      vatRegistered:     rc?.vatRegistered     ?? false,
-      vatRate:           rc?.vatRate           ?? 0.20,
-      depositPercent:    rc?.depositPercent    ?? 25,
-      minimumCharge:     rc?.minimumCharge     ?? 0,
+      labourRate:           rc?.labourRate           ?? 45,
+      callOutFee:           rc?.callOutFee           ?? 0,
+      travelRatePerMile:    rc?.travelRatePerMile    ?? 0.45,
+      markupPercent:        rc?.markupPercent        ?? 20,
+      vatRegistered:        rc?.vatRegistered        ?? false,
+      vatRate:              rc?.vatRate              ?? 0.20,
+      depositPercent:       rc?.depositPercent       ?? 25,
+      minimumCharge:        rc?.minimumCharge        ?? 0,
+      defaultPropertyType:  rc?.defaultPropertyType  ?? 'house',
+      defaultUrgency:       rc?.defaultUrgency       ?? 'standard',
+      defaultDistanceMiles: rc?.defaultDistanceMiles ?? 0,
     },
   });
 
@@ -129,6 +132,34 @@ function RateCardSection() {
         <input {...register('vatRegistered')} type="checkbox" className="h-4 w-4 rounded border-gray-300 text-brand-700" />
         <span className="text-sm font-medium text-gray-700">VAT registered (20%)</span>
       </label>
+
+      {/* Extraction defaults */}
+      <div className="border-t border-gray-100 pt-4 space-y-3">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Quote extraction defaults</p>
+        <p className="text-xs text-gray-400">Used when the AI can't determine a field from your voice description.</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Default property type">
+            <select {...register('defaultPropertyType')} className="input">
+              <option value="house">House</option>
+              <option value="flat_ground">Ground flat</option>
+              <option value="flat_upper">Upper flat</option>
+              <option value="commercial">Commercial</option>
+              <option value="new_build">New build</option>
+            </select>
+          </Field>
+          <Field label="Default urgency">
+            <select {...register('defaultUrgency')} className="input">
+              <option value="standard">Standard</option>
+              <option value="next_day">Next day</option>
+              <option value="same_day">Same day</option>
+            </select>
+          </Field>
+        </div>
+        <Field label="Default distance (miles)" hint="0 = no travel cost">
+          <input {...register('defaultDistanceMiles')} type="number" min={0} step={0.5} className="input" />
+        </Field>
+      </div>
+
       <SaveButton isPending={updateRc.isPending} isDirty={isDirty} isSuccess={updateRc.isSuccess} />
     </form>
   );

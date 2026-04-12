@@ -45,11 +45,17 @@ interface AvailableJob {
   label: string;
 }
 
+interface FieldSources {
+  propertyType:  'captured' | 'defaulted';
+  urgency:       'captured' | 'defaulted';
+  distanceMiles: 'captured' | 'defaulted';
+}
+
 type Phase =
   | { kind: 'idle' }
   | { kind: 'recording'; liveText: string }
   | { kind: 'processing'; step: 'extracting' | 'pricing' }
-  | { kind: 'confirmation'; fields: ExtractedFields; availableJobs: AvailableJob[] }
+  | { kind: 'confirmation'; fields: ExtractedFields; availableJobs: AvailableJob[]; fieldSources: FieldSources }
   | { kind: 'clarification'; question: string }
   | { kind: 'error'; message: string };
 
@@ -122,6 +128,7 @@ export default function DitatePage() {
           kind:          'confirmation',
           fields:        data.fields as ExtractedFields,
           availableJobs: (data.availableJobs ?? []) as AvailableJob[],
+          fieldSources:  (data.fieldSources ?? { propertyType: 'captured', urgency: 'captured', distanceMiles: 'captured' }) as FieldSources,
         });
         return;
       }
@@ -297,6 +304,7 @@ export default function DitatePage() {
           <ConfirmationCard
             fields={phase.fields}
             availableJobs={phase.availableJobs}
+            fieldSources={phase.fieldSources}
             traderPostcode={trader?.postcode ?? null}
             onConfirm={confirmQuote}
             onRetry={() => setPhase({ kind: 'idle' })}
@@ -414,15 +422,25 @@ export default function DitatePage() {
 
 // ─── Confirmation card ────────────────────────────────────────────────────────
 
+function DefaultBadge() {
+  return (
+    <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-400 border border-gray-200">
+      default
+    </span>
+  );
+}
+
 function ConfirmationCard({
   fields: initialFields,
   availableJobs,
+  fieldSources,
   traderPostcode,
   onConfirm,
   onRetry,
 }: {
   fields: ExtractedFields;
   availableJobs: AvailableJob[];
+  fieldSources: FieldSources;
   traderPostcode: string | null;
   onConfirm: (fields: ExtractedFields) => void;
   onRetry: () => void;
@@ -496,7 +514,9 @@ function ConfirmationCard({
 
       {/* Property type chips */}
       <div className="space-y-1.5">
-        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Property</label>
+        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center">
+          Property{fieldSources.propertyType === 'defaulted' && <DefaultBadge />}
+        </label>
         <div className="flex flex-wrap gap-2">
           {(Object.keys(PROPERTY_LABELS) as ExtractedFields['propertyType'][]).map((pt) => (
             <button
@@ -516,7 +536,9 @@ function ConfirmationCard({
 
       {/* Urgency chips */}
       <div className="space-y-1.5">
-        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Urgency</label>
+        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center">
+          Urgency{fieldSources.urgency === 'defaulted' && <DefaultBadge />}
+        </label>
         <div className="flex gap-2">
           {(Object.keys(URGENCY_LABELS) as ExtractedFields['urgency'][]).map((u) => (
             <button
@@ -555,7 +577,7 @@ function ConfirmationCard({
       {/* Travel distance — postcode lookup */}
       <div className="space-y-1.5">
         <label className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-1">
-          <MapPin className="h-3 w-3" /> Customer postcode
+          <MapPin className="h-3 w-3" /> Customer postcode{fieldSources.distanceMiles === 'defaulted' && <DefaultBadge />}
         </label>
         <div className="flex gap-2">
           <input

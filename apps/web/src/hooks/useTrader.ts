@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.ts';
-import type { RateCard, JobLibraryEntry } from '@quotebot/shared';
+import type { RateCard, JobLibraryEntry, UpdateRateCardRequest } from '@quotebot/shared';
 
 // ─── Rate card ────────────────────────────────────────────────────────────────
 
@@ -18,7 +18,7 @@ export function useRateCard() {
 export function useUpdateRateCard() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: Partial<RateCard>) => {
+    mutationFn: async (body: UpdateRateCardRequest) => {
       const { data } = await api.put('/trader/rate-card', body);
       return data as { rateCard: RateCard };
     },
