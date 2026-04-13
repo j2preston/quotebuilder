@@ -30,12 +30,12 @@ Ordered by impact on first impressions and quote accuracy.
 
 ## P2 — Reliability and correctness
 
-- [ ] **Idempotency on Twilio webhook** — if Twilio retries a delivery, duplicate quotes are created
-- [ ] **WhatsApp customer flow: restart command** — `/start` or `reset` keyword to clear a stuck session
-- [ ] **Enforce quota on generate endpoint** — currently a UI-only check; the API will generate quotes regardless
-- [ ] **Re-validate line item totals server-side** — totals are calculated client-side and trusted as-is
-- [ ] **Add index on `quotes.customer_whatsapp`** — used in customer lookup on every inbound message
-- [ ] **Standardise Claude model** — quoteAI uses `claude-sonnet-4-6`, whatsappSession uses `claude-opus-4-6`; pick one or document why they differ
+- [x] **Idempotency on Twilio webhook** — MessageSid checked against Redis SET NX (10-min TTL); duplicate requests get an empty TwiML response
+- [x] **WhatsApp customer flow: restart command** — "start", "reset", "restart", "/start" keywords wipe the session and send a fresh greeting
+- [x] **Enforce quota on generate endpoint** — server-side check on POST /generate, /confirm, and Twilio trader flow; returns 429 with plan/limit detail (trial=5, starter=50, pro=∞)
+- [x] **Re-validate line item totals server-side** — PUT /:id/line-items already recomputes total=qty×unitPrice and all quote totals server-side; saveConfirmedQuote uses the pricing engine throughout
+- [x] **Add index on `quotes.customer_whatsapp`** — idx_quotes_customer_whatsapp added to schema.sql
+- [x] **Standardise Claude model** — all active services use claude-sonnet-4-6; whatsappSession delegates to quoteAI so it was always consistent; stale ai-extract.ts updated to match
 
 ---
 

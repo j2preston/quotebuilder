@@ -102,6 +102,7 @@ CREATE TABLE IF NOT EXISTS job_materials (
 );
 
 CREATE INDEX IF NOT EXISTS idx_job_materials_job_id ON job_materials (job_library_id);
+CREATE INDEX IF NOT EXISTS idx_quotes_customer_whatsapp ON quotes (customer_whatsapp);
 
 -- ─── Quotes ───────────────────────────────────────────────────────────────────
 

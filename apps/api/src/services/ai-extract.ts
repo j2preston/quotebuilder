@@ -20,7 +20,7 @@ rewire_partial, ev_charger, outdoor_lighting, fault_finding, pat_testing, eicr, 
 
 export async function extractJobFromTranscript(transcript: string): Promise<AiExtractedJob> {
   const message = await client.messages.create({
-    model: 'claude-sonnet-4-5',
+    model: 'claude-sonnet-4-6',
     max_tokens: 2048,
     system: SYSTEM_PROMPT,
     messages: [
