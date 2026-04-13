@@ -114,6 +114,21 @@ export async function whatsappWebhookRoutes(fastify: FastifyInstance) {
       fastify.log.warn('TWILIO_AUTH_TOKEN not set — skipping signature check');
     }
 
+    // ── Idempotency — deduplicate Twilio retries ───────────────────────────
+    const messageSid = params.MessageSid ?? '';
+    if (messageSid) {
+      const idempotencyKey = `twilio:seen:${messageSid}`;
+      // SET NX with 10-minute TTL — atomic; concurrent retries get false
+      const isNew = await redis.set(idempotencyKey, '1', { NX: true, EX: 600 });
+      if (!isNew) {
+        fastify.log.info({ messageSid }, 'Duplicate Twilio webhook — skipping');
+        // Return empty TwiML so Twilio stops retrying
+        return reply.type('text/xml').send(
+          '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
+        );
+      }
+    }
+
     // ── Extract fields ─────────────────────────────────────────────────────
     const from     = params.From ?? '';   // whatsapp:+447700900000
     const to       = params.To   ?? '';   // whatsapp:+14155238886
