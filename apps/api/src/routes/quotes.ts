@@ -44,6 +44,30 @@ const updateLineItemsSchema = z
   .array(lineItemInputSchema)
   .min(1, 'At least one line item required');
 
+// ─── Quota ────────────────────────────────────────────────────────────────────
+
+const PLAN_QUOTA: Record<string, number> = {
+  trial:   5,
+  starter: 50,
+  pro:     Infinity,
+};
+
+async function checkQuota(
+  db: Pool,
+  traderId: string,
+): Promise<{ allowed: boolean; used: number; limit: number; plan: string }> {
+  const res = await db.query(
+    `SELECT plan, COALESCE(quotes_used_this_month, 0)::int AS used
+     FROM traders WHERE id = $1`,
+    [traderId],
+  );
+  const row   = res.rows[0];
+  const plan  = (row?.plan as string) ?? 'trial';
+  const used  = (row?.used as number) ?? 0;
+  const limit = PLAN_QUOTA[plan] ?? PLAN_QUOTA.trial;
+  return { allowed: used < limit, used, limit, plan };
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function zodError(err: z.ZodError) {
@@ -102,6 +126,13 @@ export async function quoteRoutes(fastify: FastifyInstance) {
     const parse = generateSchema.safeParse(req.body);
     if (!parse.success) return reply.code(400).send(zodError(parse.error));
 
+    const quota = await checkQuota(db, req.user.traderId);
+    if (!quota.allowed) {
+      return reply.code(429).send({
+        error: `Monthly quote limit reached (${quota.used}/${Number.isFinite(quota.limit) ? quota.limit : '∞'}) on ${quota.plan} plan. Upgrade to continue.`,
+      });
+    }
+
     const result = await generateQuote(parse.data.transcript, req.user.traderId, db);
 
     switch (result.status) {
@@ -129,6 +160,7 @@ export async function quoteRoutes(fastify: FastifyInstance) {
       status:        'extracted',
       fields:        result.fields,
       availableJobs: result.availableJobs,
+      fieldSources:  result.fieldSources,
     });
   });
 
@@ -137,6 +169,13 @@ export async function quoteRoutes(fastify: FastifyInstance) {
   fastify.post('/confirm', auth, async (req, reply) => {
     const parse = confirmSchema.safeParse(req.body);
     if (!parse.success) return reply.code(400).send(zodError(parse.error));
+
+    const quota = await checkQuota(db, req.user.traderId);
+    if (!quota.allowed) {
+      return reply.code(429).send({
+        error: `Monthly quote limit reached (${quota.used}/${Number.isFinite(quota.limit) ? quota.limit : '∞'}) on ${quota.plan} plan. Upgrade to continue.`,
+      });
+    }
 
     const fields = parse.data as ExtractedFields;
     const result = await saveConfirmedQuote(fields, req.user.traderId, db);

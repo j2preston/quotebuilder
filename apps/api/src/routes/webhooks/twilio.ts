@@ -151,6 +151,19 @@ export async function whatsappWebhookRoutes(fastify: FastifyInstance) {
     // ── TRADER FLOW ────────────────────────────────────────────────────────
     if (trader.isTrader) {
       const dispatchTraderResult = async (transcript: string): Promise<void> => {
+        // Quota check — same limits as web API
+        const quotaRes = await db.query(
+          `SELECT plan, COALESCE(quotes_used_this_month, 0)::int AS used FROM traders WHERE id = $1`,
+          [trader.id],
+        );
+        const plan  = (quotaRes.rows[0]?.plan as string) ?? 'trial';
+        const used  = (quotaRes.rows[0]?.used as number) ?? 0;
+        const limit = ({ trial: 5, starter: 50, pro: Infinity } as Record<string, number>)[plan] ?? 5;
+        if (used >= limit) {
+          twiml(reply, `⚠️ Monthly quote limit reached (${used}/${Number.isFinite(limit) ? limit : '∞'}). Upgrade your plan to continue.`);
+          return;
+        }
+
         const result = await generateQuote(transcript, trader.id, db);
 
         if (result.status === 'ready') {
