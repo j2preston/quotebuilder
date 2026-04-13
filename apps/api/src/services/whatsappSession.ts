@@ -28,6 +28,8 @@ export interface WhatsAppSession {
 const SESSION_PREFIX = 'session:';
 const TTL            = WHATSAPP_SESSION_TTL_SECONDS;
 
+const RESTART_KEYWORDS = new Set(['start', 'reset', 'restart', '/start']);
+
 const PROPERTY_LABELS: Record<string, string> = {
   house:       'House',
   flat_ground: 'Ground floor flat',
@@ -239,6 +241,12 @@ export async function handleCustomerMessage(
   traderName: string,
   traderId: string,
 ): Promise<string> {
+  // ── Restart command — wipe session and start fresh ─────────────────────────
+  if (RESTART_KEYWORDS.has(inboundText.trim().toLowerCase())) {
+    await deleteSession(redis, whatsappNumber);
+    return `Hi! I'm the quoting assistant for ${traderName}. What job do you need a quote for?`;
+  }
+
   const existingSession = await getSession(redis, whatsappNumber);
 
   // ── ROUND 1: first message ─────────────────────────────────────────────────
