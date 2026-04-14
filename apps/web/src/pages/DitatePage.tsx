@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mic, MicOff, AlertCircle, ChevronRight, Info, CheckCircle2, Edit2, MapPin, Loader2 } from 'lucide-react';
+import { Mic, MicOff, AlertCircle, ChevronRight, Info, CheckCircle2, Edit2, MapPin, Loader2, X } from 'lucide-react';
 import { api } from '../lib/api.ts';
 import { useAuthStore } from '../store/auth.ts';
 
@@ -464,6 +464,19 @@ function ConfirmationCard({
   const [lookupError,      setLookupError]       = useState<string | null>(null);
   const [lookedUpMiles,    setLookedUpMiles]     = useState<number | null>(initialFields.distanceMiles > 0 ? initialFields.distanceMiles : null);
 
+  // Inline mileage edit
+  const [editingMiles, setEditingMiles] = useState(false);
+  const [milesDraft,   setMilesDraft]   = useState('');
+
+  const commitMiles = () => {
+    const val = parseFloat(milesDraft);
+    if (!isNaN(val) && val >= 0) {
+      set('distanceMiles', val);
+      setLookedUpMiles(val > 0 ? val : null);
+    }
+    setEditingMiles(false);
+  };
+
   async function handlePostcodeLookup() {
     const customer = customerPostcode.trim();
     if (!customer) return;
@@ -598,24 +611,39 @@ function ConfirmationCard({
           </button>
         </div>
         {lookupError && <p className="text-xs text-red-500">{lookupError}</p>}
-        {lookedUpMiles !== null && !lookupError && (
-          <p className="text-xs text-brand-700 font-medium">
-            <CheckCircle2 className="h-3 w-3 inline mr-1" />
-            {lookedUpMiles} miles — travel cost calculated automatically
-          </p>
-        )}
-        {/* Manual override */}
+
+        {/* Distance result / inline edit */}
         <div className="flex items-center gap-2 pt-1">
-          <span className="text-xs text-gray-400">Manual override:</span>
-          <input
-            type="number"
-            min={0}
-            step={0.5}
-            value={fields.distanceMiles}
-            onChange={(e) => { set('distanceMiles', parseFloat(e.target.value) || 0); setLookedUpMiles(parseFloat(e.target.value) || 0); }}
-            className="input w-24 text-sm py-1"
-          />
-          <span className="text-xs text-gray-400">mi</span>
+          {editingMiles ? (
+            <>
+              <input
+                autoFocus
+                type="number"
+                min={0}
+                step={0.5}
+                value={milesDraft}
+                onChange={(e) => setMilesDraft(e.target.value)}
+                onBlur={commitMiles}
+                onKeyDown={(e) => { if (e.key === 'Enter') commitMiles(); if (e.key === 'Escape') setEditingMiles(false); }}
+                className="input w-20 text-sm py-1"
+              />
+              <span className="text-xs text-gray-400">mi</span>
+              <button onClick={() => setEditingMiles(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => { setMilesDraft(String(fields.distanceMiles || '')); setEditingMiles(true); }}
+              className="flex items-center gap-1 text-xs text-brand-700 hover:underline"
+            >
+              {lookedUpMiles !== null && !lookupError && (
+                <CheckCircle2 className="h-3 w-3" />
+              )}
+              {fields.distanceMiles > 0 ? `${fields.distanceMiles} mi` : 'Set distance manually'}
+              <Edit2 className="h-3 w-3 text-gray-400 ml-0.5" />
+            </button>
+          )}
         </div>
       </div>
 

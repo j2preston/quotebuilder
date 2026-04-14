@@ -112,7 +112,7 @@ export function useMarkMaterialsReviewed() {
 export function useUpdateProfile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: { name?: string; businessName?: string; trade?: string; location?: string; whatsappNumber?: string }) => {
+    mutationFn: async (body: { name?: string; businessName?: string; trade?: string; location?: string; postcode?: string | null; whatsappNumber?: string | null }) => {
       const { data } = await api.put('/trader/profile', body);
       return data;
     },

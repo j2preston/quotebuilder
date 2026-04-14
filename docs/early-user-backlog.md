@@ -49,9 +49,24 @@ Ordered by impact on first impressions and quote accuracy.
 
 ---
 
+## P3.5 — Stripe subscriptions (billing MVP)
+
+Plans: **trial** (5 quotes/mo, free) → **starter** (50 quotes/mo) → **pro** (unlimited).
+Stripe customer ID is already created at registration. Quota enforcement is already live.
+All items below must ship together as one coherent billing feature.
+
+- [ ] **Stripe products + prices** — create Starter and Pro products in Stripe dashboard with monthly prices; store price IDs in env vars (`STRIPE_STARTER_PRICE_ID`, `STRIPE_PRO_PRICE_ID`)
+- [ ] **POST /api/billing/checkout** — authenticated endpoint; creates a Stripe Checkout Session (subscription mode) for the requested plan; returns `{ url }` for redirect. Includes `success_url` and `cancel_url` back to the app.
+- [ ] **POST /api/billing/portal** — authenticated endpoint; creates a Stripe Customer Portal Session for the trader's existing subscription (cancel, swap plan, update card); returns `{ url }` for redirect
+- [ ] **POST /api/billing/webhook** — unauthenticated, Stripe-signature-verified endpoint; handles `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted` events → updates `traders.plan` accordingly. Deleted/cancelled → revert to `trial`.
+- [ ] **Monthly quota reset cron** — reset `quotes_used_this_month = 0` on the 1st of each month for all traders (currently quota counts never reset, making it meaningless after month 1)
+- [ ] **Settings billing section** — show current plan + quote usage; "Upgrade" button for trial/starter users → hits `/api/billing/checkout`; "Manage subscription" link for paid users → hits `/api/billing/portal`
+- [ ] **Quota exceeded UI** — when `/confirm` or `/generate` returns 429, show a clear upgrade prompt rather than a generic error
+
+---
+
 ## P4 — Nice to have post-MVP
 
-- [ ] Stripe subscription + payment links
 - [ ] Quote versioning / edit history
 - [ ] Logo upload on quotes and PDFs
 - [ ] CSV export of quotes

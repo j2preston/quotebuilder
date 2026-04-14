@@ -40,7 +40,7 @@ function ProfileSection() {
   const updateProfile = useUpdateProfile();
 
   type Form = { name: string; businessName: string; trade: string; location: string; postcode: string; whatsappNumber: string };
-  const { register, handleSubmit, formState: { isDirty, errors } } = useForm<Form>({
+  const { register, handleSubmit, reset, formState: { isDirty, errors } } = useForm<Form>({
     defaultValues: {
       name:           trader?.name ?? '',
       businessName:   trader?.businessName ?? '',
@@ -54,8 +54,15 @@ function ProfileSection() {
   return (
     <form
       onSubmit={handleSubmit(async (d) => {
-        const res = await updateProfile.mutateAsync(d);
-        if (res?.trader) setTrader(res.trader);
+        try {
+          const res = await updateProfile.mutateAsync(d);
+          if (res?.trader) {
+            setTrader(res.trader);
+            reset(d);
+          }
+        } catch {
+          // error displayed via updateProfile.isError below
+        }
       })}
       className="space-y-4 pt-4"
     >
@@ -79,6 +86,9 @@ function ProfileSection() {
       <Field label="WhatsApp" hint="+44...">
         <input {...register('whatsappNumber')} type="tel" className="input" placeholder="+447700900000" />
       </Field>
+      {updateProfile.isError && (
+        <p className="text-sm text-red-600">Save failed — please try again.</p>
+      )}
       <SaveButton isPending={updateProfile.isPending} isDirty={isDirty} isSuccess={updateProfile.isSuccess} />
     </form>
   );

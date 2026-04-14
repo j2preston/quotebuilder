@@ -33,9 +33,15 @@ export interface AvailableJob {
   label: string;
 }
 
+export interface FieldSources {
+  propertyType:  'captured' | 'defaulted';
+  urgency:       'captured' | 'defaulted';
+  distanceMiles: 'captured' | 'defaulted';
+}
+
 export type ExtractionResult =
   | { status: 'needs_clarification'; question: string }
-  | { status: 'extracted'; fields: ExtractedFields; availableJobs: AvailableJob[] };
+  | { status: 'extracted'; fields: ExtractedFields; availableJobs: AvailableJob[]; fieldSources: FieldSources };
 
 interface AssemblyResult {
   jobDescription: string;
@@ -61,8 +67,11 @@ function rowToRateCard(row: any): RateCard {
     vatRegistered:     row.vat_registered,
     vatRate:           Number(row.vat_rate),
     depositPercent:    Number(row.deposit_percent),
-    minimumCharge:     Number(row.minimum_charge ?? 0),
-    updatedAt:         row.updated_at,
+    minimumCharge:        Number(row.minimum_charge ?? 0),
+    defaultPropertyType:  (row.default_property_type ?? 'house') as PropertyType,
+    defaultUrgency:       (row.default_urgency ?? 'standard') as Urgency,
+    defaultDistanceMiles: Number(row.default_distance_miles ?? 0),
+    updatedAt:            row.updated_at,
   };
 }
 
@@ -97,14 +106,21 @@ export async function extractQuoteFields(
   traderId: string,
   db: Pool,
 ): Promise<ExtractionResult> {
-  // Load trader context and job library
-  const [traderRes, libraryRes] = await Promise.all([
+  // Load trader context, rate card (for defaults), and job library
+  const [traderRes, rcRes, libraryRes] = await Promise.all([
     db.query('SELECT name, trade, location FROM traders WHERE id = $1', [traderId]),
+    db.query('SELECT default_property_type, default_urgency, default_distance_miles FROM rate_cards WHERE trader_id = $1', [traderId]),
     db.query(
       'SELECT * FROM job_library WHERE trader_id = $1 AND active = true ORDER BY job_key',
       [traderId],
     ),
   ]);
+
+  const traderDefaults = {
+    propertyType:  (rcRes.rows[0]?.default_property_type  ?? 'house')     as PropertyType,
+    urgency:       (rcRes.rows[0]?.default_urgency         ?? 'standard')  as Urgency,
+    distanceMiles: Number(rcRes.rows[0]?.default_distance_miles ?? 0),
+  };
 
   const trader = traderRes.rows[0];
   if (!trader) {
@@ -188,7 +204,25 @@ export async function extractQuoteFields(
 
   const availableJobs: AvailableJob[] = jobLibrary.map((j) => ({ jobKey: j.jobKey, label: j.label }));
 
-  return { status: 'extracted', fields: extracted, availableJobs };
+  // Apply trader defaults for fields that were not explicitly captured.
+  // A field is considered "not captured" when:
+  //  - propertyType: AI returned 'house' but confidence is not high
+  //  - urgency:      AI returned 'standard' but confidence is not high
+  //  - distanceMiles: AI returned 0 (never mentioned)
+  const notHighConfidence = extracted.confidence !== 'high';
+
+  const fieldSources: FieldSources = {
+    propertyType:  (!extracted.propertyType || (extracted.propertyType === 'house' && notHighConfidence)) ? 'defaulted' : 'captured',
+    urgency:       (!extracted.urgency       || (extracted.urgency === 'standard'  && notHighConfidence)) ? 'defaulted' : 'captured',
+    distanceMiles: (Number(extracted.distanceMiles) === 0)                                                ? 'defaulted' : 'captured',
+  };
+
+  // Replace defaulted fields with trader-configured defaults
+  if (fieldSources.propertyType  === 'defaulted') extracted.propertyType  = traderDefaults.propertyType;
+  if (fieldSources.urgency       === 'defaulted') extracted.urgency       = traderDefaults.urgency;
+  if (fieldSources.distanceMiles === 'defaulted') extracted.distanceMiles = traderDefaults.distanceMiles;
+
+  return { status: 'extracted', fields: extracted, availableJobs, fieldSources };
 }
 
 // ─── Step 2: Price + save a confirmed set of fields ───────────────────────────
