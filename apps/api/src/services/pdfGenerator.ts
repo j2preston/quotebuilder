@@ -329,6 +329,9 @@ function buildHtml(d: PdfQuoteData): string {
 export async function generateQuotePdf(data: PdfQuoteData): Promise<Buffer> {
   const browser = await puppeteer.launch({
     headless: true,
+    // In production (container) PUPPETEER_EXECUTABLE_PATH points to system Chromium.
+    // In local dev it is unset and Puppeteer uses its own bundled Chrome.
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
   });
 
