@@ -198,3 +198,81 @@ JOIN (VALUES
 ) AS m(job_key, item, cost) ON m.job_key = t.job_key
 WHERE t.trade = 'Electrician'
 ON CONFLICT DO NOTHING;
+
+-- ─── Seed: master job templates for Plumber ──────────────────────────────────
+
+INSERT INTO master_job_templates (trade, job_key, label, labour_hours) VALUES
+  ('Plumber', 'tap_replacement',         'Tap Replacement',                     1.0),
+  ('Plumber', 'stop_cock_replacement',   'Stop Cock Replacement',               1.0),
+  ('Plumber', 'toilet_cistern_repair',   'Toilet Cistern Repair',               1.0),
+  ('Plumber', 'toilet_replacement',      'Toilet Replacement',                  2.5),
+  ('Plumber', 'basin_replacement',       'Basin Replacement',                   2.5),
+  ('Plumber', 'bath_replacement',        'Bath Replacement',                    5.0),
+  ('Plumber', 'shower_electric',         'Electric Shower Installation',        3.0),
+  ('Plumber', 'shower_mixer',            'Mixer Shower Installation',           4.0),
+  ('Plumber', 'outdoor_tap',             'Outdoor Tap Fitting',                 1.5),
+  ('Plumber', 'radiator_installation',   'Radiator Installation',               2.0),
+  ('Plumber', 'leak_repair',             'Leak Investigation & Repair',         1.0),
+  ('Plumber', 'powerflush',              'Central Heating Powerflush',          4.0),
+  ('Plumber', 'unvented_cylinder',       'Unvented Cylinder Replacement',       6.0),
+  ('Plumber', 'bathroom_full',           'Full Bathroom Installation',         16.0)
+ON CONFLICT (trade, job_key) DO NOTHING;
+
+-- Default materials for common plumber jobs
+INSERT INTO master_job_materials (template_id, item, cost)
+SELECT t.id, m.item, m.cost
+FROM master_job_templates t
+JOIN (VALUES
+  ('toilet_replacement',   'Close-coupled toilet (inc. seat)', 120.00),
+  ('toilet_replacement',   'Isolation valve',                   12.00),
+  ('toilet_replacement',   'Flexible connector',                 6.00),
+  ('toilet_replacement',   'Silicone & fixings',                 8.00),
+  ('basin_replacement',    'Basin',                             75.00),
+  ('basin_replacement',    'Basin tap (pair)',                  45.00),
+  ('basin_replacement',    'Pop-up waste',                      12.00),
+  ('basin_replacement',    'Flexible hoses (pair)',              8.00),
+  ('shower_electric',      'Electric shower unit',             180.00),
+  ('shower_electric',      '10mm² twin & earth cable',          22.00),
+  ('shower_electric',      'Shower enclosure',                 120.00),
+  ('unvented_cylinder',    'Unvented hot water cylinder',      650.00),
+  ('unvented_cylinder',    'Expansion vessel',                  45.00),
+  ('unvented_cylinder',    'Pressure reducing valve',           35.00),
+  ('unvented_cylinder',    'Discharge pipe & fittings',         20.00)
+) AS m(job_key, item, cost) ON m.job_key = t.job_key
+WHERE t.trade = 'Plumber'
+ON CONFLICT DO NOTHING;
+
+-- ─── Seed: master job templates for Gas Engineer ──────────────────────────────
+
+INSERT INTO master_job_templates (trade, job_key, label, labour_hours) VALUES
+  ('Gas Engineer', 'boiler_service',          'Boiler Service',                      1.5),
+  ('Gas Engineer', 'boiler_repair',           'Boiler Repair',                       2.0),
+  ('Gas Engineer', 'boiler_replacement',      'Boiler Replacement (like-for-like)',  6.0),
+  ('Gas Engineer', 'gas_safety_certificate',  'Gas Safety Certificate (CP12)',       1.0),
+  ('Gas Engineer', 'gas_leak_investigation',  'Gas Leak Investigation',              1.0),
+  ('Gas Engineer', 'radiator_installation',   'Radiator Installation',               1.5),
+  ('Gas Engineer', 'thermostat_upgrade',      'Thermostat & Controls Upgrade',       1.0),
+  ('Gas Engineer', 'pressure_relief_valve',   'Pressure Relief Valve Replacement',   1.0),
+  ('Gas Engineer', 'flue_replacement',        'Flue Installation / Replacement',     2.0),
+  ('Gas Engineer', 'system_flush',            'Central Heating System Flush',        4.0)
+ON CONFLICT (trade, job_key) DO NOTHING;
+
+-- Default materials for common gas engineer jobs
+INSERT INTO master_job_materials (template_id, item, cost)
+SELECT t.id, m.item, m.cost
+FROM master_job_templates t
+JOIN (VALUES
+  ('boiler_replacement',     'Combi boiler (mid-range)',           900.00),
+  ('boiler_replacement',     'Flue kit',                           75.00),
+  ('boiler_replacement',     'Gas valve',                          85.00),
+  ('boiler_replacement',     'Magnetic system filter',             65.00),
+  ('boiler_replacement',     'Chemical inhibitor',                 15.00),
+  ('boiler_service',         'Service kit (seals, gaskets)',       18.00),
+  ('boiler_service',         'Chemical inhibitor top-up',         12.00),
+  ('thermostat_upgrade',     'Smart thermostat (e.g. Hive)',      120.00),
+  ('thermostat_upgrade',     'Receiver unit',                      45.00),
+  ('pressure_relief_valve',  'Pressure relief valve',              22.00),
+  ('pressure_relief_valve',  'Discharge pipe & fittings',         12.00)
+) AS m(job_key, item, cost) ON m.job_key = t.job_key
+WHERE t.trade = 'Gas Engineer'
+ON CONFLICT DO NOTHING;
