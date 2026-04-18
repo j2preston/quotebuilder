@@ -37,15 +37,32 @@ param stripePriceIdPro string = ''
 
 // ── Secrets (passed from GitHub secrets — never committed) ────────────────────
 
-@secure() param databaseUrl string
-@secure() param redisUrl string
-@secure() param jwtSecret string
-@secure() param anthropicApiKey string
-@secure() param twilioAccountSid string
-@secure() param twilioAuthToken string
-@secure() param stripeSecretKey string
-@secure() param stripeWebhookSecret string
-@secure() param azureStorageConnectionString string
+@secure()
+param databaseUrl string
+
+@secure()
+param redisUrl string
+
+@secure()
+param jwtSecret string
+
+@secure()
+param anthropicApiKey string
+
+@secure()
+param twilioAccountSid string
+
+@secure()
+param twilioAuthToken string
+
+@secure()
+param stripeSecretKey string
+
+@secure()
+param stripeWebhookSecret string
+
+@secure()
+param azureStorageConnectionString string
 
 // ── Derived values ────────────────────────────────────────────────────────────
 
