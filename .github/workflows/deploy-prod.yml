@@ -1,0 +1,89 @@
+name: Deploy to Prod
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+env:
+  RG:           rg-quotebot-prod
+  ACR:          quotebotmqpcv63d.azurecr.io
+  API_IMAGE:    quotebotmqpcv63d.azurecr.io/quotebot-api
+  WEB_IMAGE:    quotebotmqpcv63d.azurecr.io/quotebot-web
+  VITE_API_URL: https://ca-quotebot-api.thankfuldune-b686df08.uksouth.azurecontainerapps.io
+
+jobs:
+  deploy:
+    name: Build, push, deploy (prod)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Login to ACR
+        run: az acr login --name quotebotmqpcv63d
+
+      - name: Build and push API image
+        run: |
+          docker build \
+            --file apps/api/Dockerfile \
+            --tag ${{ env.API_IMAGE }}:prod-${{ github.sha }} \
+            --tag ${{ env.API_IMAGE }}:latest \
+            .
+          docker push ${{ env.API_IMAGE }}:prod-${{ github.sha }}
+          docker push ${{ env.API_IMAGE }}:latest
+
+      - name: Build and push Web image
+        run: |
+          docker build \
+            --file apps/web/Dockerfile \
+            --build-arg VITE_API_URL="${{ env.VITE_API_URL }}" \
+            --tag ${{ env.WEB_IMAGE }}:prod-${{ github.sha }} \
+            --tag ${{ env.WEB_IMAGE }}:latest \
+            .
+          docker push ${{ env.WEB_IMAGE }}:prod-${{ github.sha }}
+          docker push ${{ env.WEB_IMAGE }}:latest
+
+      - name: Deploy via Bicep
+        run: |
+          az deployment group create \
+            --resource-group ${{ env.RG }} \
+            --template-file infra/main.bicep \
+            --parameters @infra/environments/prod.parameters.json \
+            --parameters \
+              apiImage="${{ env.API_IMAGE }}:prod-${{ github.sha }}" \
+              webImage="${{ env.WEB_IMAGE }}:prod-${{ github.sha }}" \
+              databaseUrl="${{ secrets.PROD_DATABASE_URL }}" \
+              redisUrl="${{ secrets.PROD_REDIS_URL }}" \
+              jwtSecret="${{ secrets.PROD_JWT_SECRET }}" \
+              anthropicApiKey="${{ secrets.ANTHROPIC_API_KEY }}" \
+              twilioAccountSid="${{ secrets.PROD_TWILIO_ACCOUNT_SID }}" \
+              twilioAuthToken="${{ secrets.PROD_TWILIO_AUTH_TOKEN }}" \
+              stripeSecretKey="${{ secrets.PROD_STRIPE_SECRET_KEY }}" \
+              stripeWebhookSecret="${{ secrets.PROD_STRIPE_WEBHOOK_SECRET }}" \
+              azureStorageConnectionString="${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}"
+
+      - name: Print deployment URLs
+        run: |
+          API=$(az containerapp show -n ca-quotebot-api -g ${{ env.RG }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          WEB=$(az containerapp show -n ca-quotebot-web -g ${{ env.RG }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          echo "### Prod deployment complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "| | URL |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Web | https://${WEB} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| API | https://${API} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Twilio webhook | https://${API}/api/webhooks/whatsapp |" >> "$GITHUB_STEP_SUMMARY"

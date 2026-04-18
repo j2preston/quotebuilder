@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "env":                       { "value": "prod" },
+    "acrName":                   { "value": "quotebotmqpcv63d" },
+    "containerAppEnvironmentId": { "value": "/subscriptions/4e5397fe-a7b6-4227-b9c0-8f599991bb57/resourceGroups/rg-quotebot-prod/providers/Microsoft.App/managedEnvironments/cae-quotebot-prod" },
+    "frontendUrl":               { "value": "https://ca-quotebot-web.thankfuldune-b686df08.uksouth.azurecontainerapps.io" },
+    "appUrl":                    { "value": "https://ca-quotebot-api.thankfuldune-b686df08.uksouth.azurecontainerapps.io" },
+    "twilioWhatsappNumber":      { "value": "" },
+    "stripePriceIdStarter":      { "value": "" },
+    "stripePriceIdPro":          { "value": "" }
+  }
+}
