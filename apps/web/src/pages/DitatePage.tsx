@@ -100,6 +100,8 @@ export default function DitatePage() {
   const trader   = useAuthStore((s) => s.trader);
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
   const [clarificationAnswer, setClarificationAnswer] = useState('');
+  const [inputMode, setInputMode] = useState<'voice' | 'text'>(SpeechRecognitionAPI ? 'voice' : 'text');
+  const [textDraft, setTextDraft] = useState('');
 
   const recogRef     = useRef<SR | null>(null);
   const finalTextRef = useRef('');
@@ -240,7 +242,7 @@ export default function DitatePage() {
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900">Dictate a Quote</h1>
           <p className="text-sm text-gray-500 mt-1">
-            {phase.kind === 'idle'          && 'Hold the button and describe the job'}
+            {phase.kind === 'idle'          && (inputMode === 'voice' ? 'Hold the button and describe the job' : 'Type a description of the job below')}
             {phase.kind === 'recording'     && 'Listening… release when done'}
             {phase.kind === 'processing'    && STEPS.find((s) => s.key === phase.step)?.label}
             {phase.kind === 'confirmation'  && 'Check the details — edit anything that\'s wrong'}
@@ -259,8 +261,30 @@ export default function DitatePage() {
           </div>
         )}
 
-        {/* Idle placeholder */}
-        {phase.kind === 'idle' && (
+        {/* Voice / Type toggle */}
+        {SpeechRecognitionAPI && phase.kind === 'idle' && (
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+            <button
+              onClick={() => setInputMode('voice')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${
+                inputMode === 'voice' ? 'bg-brand-700 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Mic className="h-4 w-4" /> Voice
+            </button>
+            <button
+              onClick={() => setInputMode('text')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${
+                inputMode === 'text' ? 'bg-brand-700 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Edit2 className="h-4 w-4" /> Type
+            </button>
+          </div>
+        )}
+
+        {/* Idle placeholder — voice mode only */}
+        {phase.kind === 'idle' && inputMode === 'voice' && (
           <div className="h-20 flex items-center justify-center">
             <div className="flex items-end gap-1 h-10">
               {Array.from({ length: 20 }, (_, i) => (
@@ -306,6 +330,7 @@ export default function DitatePage() {
             availableJobs={phase.availableJobs}
             fieldSources={phase.fieldSources}
             traderPostcode={trader?.postcode ?? null}
+            inputMode={inputMode}
             onConfirm={confirmQuote}
             onRetry={() => setPhase({ kind: 'idle' })}
           />
@@ -351,8 +376,8 @@ export default function DitatePage() {
           </div>
         )}
 
-        {/* Record button */}
-        {SpeechRecognitionAPI && (phase.kind === 'idle' || phase.kind === 'recording') && (
+        {/* Record button — voice mode only */}
+        {SpeechRecognitionAPI && inputMode === 'voice' && (phase.kind === 'idle' || phase.kind === 'recording') && (
           <div className="flex flex-col items-center gap-4 pt-4">
             <button
               onPointerDown={handlePointerDown}
@@ -379,20 +404,20 @@ export default function DitatePage() {
           </div>
         )}
 
-        {/* Text fallback */}
-        {!SpeechRecognitionAPI && phase.kind === 'idle' && (
+        {/* Text input — type mode or no speech API */}
+        {(inputMode === 'text' || !SpeechRecognitionAPI) && phase.kind === 'idle' && (
           <div className="space-y-3">
             <textarea
+              value={textDraft}
+              onChange={(e) => setTextDraft(e.target.value)}
               className="input min-h-[100px] resize-none w-full"
               placeholder='Describe the job, e.g. "Replace consumer unit at a 3-bed semi, standard urgency, customer Mrs Davies"'
-              id="text-fallback"
+              autoFocus
             />
             <button
               className="btn-primary w-full"
-              onClick={() => {
-                const el = document.getElementById('text-fallback') as HTMLTextAreaElement;
-                submitTranscript(el.value);
-              }}
+              disabled={!textDraft.trim()}
+              onClick={() => submitTranscript(textDraft)}
             >
               <ChevronRight className="h-4 w-4" /> Generate quote
             </button>
@@ -435,6 +460,7 @@ function ConfirmationCard({
   availableJobs,
   fieldSources,
   traderPostcode,
+  inputMode,
   onConfirm,
   onRetry,
 }: {
@@ -442,6 +468,7 @@ function ConfirmationCard({
   availableJobs: AvailableJob[];
   fieldSources: FieldSources;
   traderPostcode: string | null;
+  inputMode: 'voice' | 'text';
   onConfirm: (fields: ExtractedFields) => void;
   onRetry: () => void;
 }) {
@@ -704,7 +731,7 @@ function ConfirmationCard({
           onClick={onRetry}
           className="btn-secondary flex-1"
         >
-          Re-dictate
+          {inputMode === 'text' ? 'Re-type' : 'Re-dictate'}
         </button>
         <button
           onClick={() => onConfirm(fields)}
