@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import formbody from '@fastify/formbody';
 import multipart from '@fastify/multipart';
+import cron from 'node-cron';
 import { dbPlugin } from './plugins/db.js';
 import { redisPlugin } from './plugins/redis.js';
 import { authRoutes } from './routes/auth.js';
@@ -41,6 +42,20 @@ async function bootstrap() {
   await server.register(whatsappWebhookRoutes, { prefix: '/api/webhooks/whatsapp' });
 
   server.get('/health', async () => ({ status: 'ok', ts: new Date().toISOString() }));
+
+  // Reset all traders' monthly quota on the 1st of each month at 00:05 UTC.
+  // The 5-minute offset avoids the exact midnight boundary where a quota check
+  // and the reset could race in the same second.
+  cron.schedule('5 0 1 * *', async () => {
+    try {
+      const result = await server.db.query(
+        'UPDATE traders SET quotes_used_this_month = 0',
+      );
+      server.log.info({ rowsReset: result.rowCount }, 'Monthly quota reset complete');
+    } catch (err) {
+      server.log.error({ err }, 'Monthly quota reset failed');
+    }
+  }, { timezone: 'UTC' });
 
   const port = Number(process.env.PORT ?? 3000);
   await server.listen({ port, host: '0.0.0.0' });
