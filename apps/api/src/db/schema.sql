@@ -26,14 +26,9 @@ CREATE TABLE IF NOT EXISTS traders (
 );
 
 -- Idempotent column adds for existing databases
-ALTER TABLE traders    ADD COLUMN IF NOT EXISTS onboarding_complete    BOOLEAN     NOT NULL DEFAULT FALSE;
-ALTER TABLE traders    ADD COLUMN IF NOT EXISTS postcode               TEXT;
-ALTER TABLE traders    ADD COLUMN IF NOT EXISTS materials_reviewed_at  TIMESTAMPTZ;
-ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS minimum_charge         DECIMAL(10,2) NOT NULL DEFAULT 0;
-ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS default_property_type  TEXT NOT NULL DEFAULT 'house';
-ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS default_urgency        TEXT NOT NULL DEFAULT 'standard';
-ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS default_distance_miles DECIMAL(8,2) NOT NULL DEFAULT 0;
-ALTER TABLE quotes     ADD COLUMN IF NOT EXISTS job_key                TEXT;
+ALTER TABLE traders ADD COLUMN IF NOT EXISTS onboarding_complete    BOOLEAN     NOT NULL DEFAULT FALSE;
+ALTER TABLE traders ADD COLUMN IF NOT EXISTS postcode               TEXT;
+ALTER TABLE traders ADD COLUMN IF NOT EXISTS materials_reviewed_at  TIMESTAMPTZ;
 
 -- ─── Rate Cards ───────────────────────────────────────────────────────────────
 
@@ -54,6 +49,12 @@ CREATE TABLE IF NOT EXISTS rate_cards (
   updated_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
   CONSTRAINT rate_cards_trader_id_unique UNIQUE (trader_id)
 );
+
+-- Idempotent column adds for existing databases
+ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS minimum_charge         DECIMAL(10,2) NOT NULL DEFAULT 0;
+ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS default_property_type  TEXT          NOT NULL DEFAULT 'house';
+ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS default_urgency        TEXT          NOT NULL DEFAULT 'standard';
+ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS default_distance_miles DECIMAL(8,2)  NOT NULL DEFAULT 0;
 
 -- ─── Master Job Templates (global — seeded per trade) ─────────────────────────
 
@@ -102,7 +103,6 @@ CREATE TABLE IF NOT EXISTS job_materials (
 );
 
 CREATE INDEX IF NOT EXISTS idx_job_materials_job_id ON job_materials (job_library_id);
-CREATE INDEX IF NOT EXISTS idx_quotes_customer_whatsapp ON quotes (customer_whatsapp);
 
 -- ─── Quotes ───────────────────────────────────────────────────────────────────
 
@@ -124,9 +124,13 @@ CREATE TABLE IF NOT EXISTS quotes (
   updated_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_quotes_trader_id ON quotes (trader_id);
-CREATE INDEX IF NOT EXISTS idx_quotes_status    ON quotes (trader_id, status);
-CREATE INDEX IF NOT EXISTS idx_quotes_created   ON quotes (trader_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_quotes_trader_id           ON quotes (trader_id);
+CREATE INDEX IF NOT EXISTS idx_quotes_status              ON quotes (trader_id, status);
+CREATE INDEX IF NOT EXISTS idx_quotes_created             ON quotes (trader_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_quotes_customer_whatsapp   ON quotes (customer_whatsapp);
+
+-- Idempotent column adds for existing databases
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS job_key TEXT;
 
 -- ─── Quote Line Items ─────────────────────────────────────────────────────────
 
