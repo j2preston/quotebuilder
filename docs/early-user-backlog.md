@@ -44,7 +44,7 @@ Ordered by impact on first impressions and quote accuracy.
 - [x] **Seed job templates for Plumber** — second trade, highest demand; schema is already trade-aware
 - [x] **Seed job templates for Gas Engineer** — often same operator as plumber
 - [x] **Onboarding wizard** — walk new trader through: trade → key jobs → labour hours → materials → first test quote
-- [ ] **Quote acceptance rate visible to trader** — basic dashboard metric: sent vs accepted this month
+- [x] **Quote acceptance rate visible to trader** — basic dashboard metric: sent vs accepted this month
 - [ ] **Email fallback for quote delivery** — WhatsApp-only locks out customers who prefer email
 
 ---

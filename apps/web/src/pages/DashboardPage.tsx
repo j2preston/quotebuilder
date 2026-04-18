@@ -15,11 +15,13 @@ export default function DashboardPage() {
   const thisMonth = new Date();
   thisMonth.setDate(1); thisMonth.setHours(0, 0, 0, 0);
 
-  const monthQuotes  = quotes.filter((q) => new Date(q.createdAt) >= thisMonth);
-  const totalValue   = quotes.filter((q) => q.status === 'accepted').reduce((s, q) => s + q.total, 0);
-  const pendingCount = quotes.filter((q) => q.status === 'sent').length;
+  const monthQuotes       = quotes.filter((q) => new Date(q.createdAt) >= thisMonth);
+  const sentThisMonth     = monthQuotes.filter((q) => q.status !== 'draft').length;
+  const acceptedThisMonth = monthQuotes.filter((q) => q.status === 'accepted').length;
+  const acceptanceRate    = sentThisMonth > 0 ? Math.round((acceptedThisMonth / sentThisMonth) * 100) : null;
+  const pendingCount      = quotes.filter((q) => q.status === 'sent').length;
 
-  const quotaLimit   = trader?.plan === 'pro' ? Infinity : trader?.plan === 'starter' ? 30 : 3;
+  const quotaLimit   = trader?.plan === 'pro' ? Infinity : trader?.plan === 'starter' ? 50 : 5;
   const used         = trader?.quotesUsedThisMonth ?? 0;
   const quotaPct     = quotaLimit === Infinity ? 0 : Math.min(100, (used / quotaLimit) * 100);
 
@@ -34,18 +36,19 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <StatCard
           icon={FileText}
-          label="This month"
+          label="Quotes this month"
           value={String(monthQuotes.length)}
           sub={`of ${quotaLimit === Infinity ? '∞' : quotaLimit}`}
           color="blue"
         />
         <StatCard
           icon={TrendingUp}
-          label="Accepted revenue"
-          value={formatGBP(totalValue)}
+          label="Acceptance rate"
+          value={acceptanceRate !== null ? `${acceptanceRate}%` : '—'}
+          sub={sentThisMonth > 0 ? `${acceptedThisMonth}/${sentThisMonth} sent` : 'No quotes sent yet'}
           color="green"
         />
         <StatCard
@@ -53,6 +56,12 @@ export default function DashboardPage() {
           label="Awaiting reply"
           value={String(pendingCount)}
           color="yellow"
+        />
+        <StatCard
+          icon={CheckCircle}
+          label="Won this month"
+          value={formatGBP(monthQuotes.filter((q) => q.status === 'accepted').reduce((s, q) => s + q.total, 0))}
+          color="green"
         />
       </div>
 
