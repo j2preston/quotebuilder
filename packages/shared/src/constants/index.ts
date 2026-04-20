@@ -53,6 +53,7 @@ export const UK_TRADES = [
   'Electrician',
   'Plumber',
   'Gas Engineer',
+  'Gardener',
   'Builder',
   'Carpenter',
   'Painter & Decorator',

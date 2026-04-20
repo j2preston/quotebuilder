@@ -80,11 +80,40 @@ const URGENCY_LABELS: Record<ExtractedFields['urgency'], string> = {
   same_day: 'Same day',
 };
 
-const COMPLEXITY_OPTIONS: Array<{ key: string; label: string }> = [
-  { key: 'older_property',        label: 'Older property' },
-  { key: 'no_existing_cable_run', label: 'No cable run' },
-  { key: 'multiple_floors',       label: 'Multiple floors' },
-];
+function getComplexityOptions(trade: string | undefined | null): Array<{ key: string; label: string }> {
+  switch ((trade ?? '').toLowerCase()) {
+    case 'gardener':
+      return [
+        { key: 'steep_sloped_garden', label: 'Steep/sloped garden' },
+        { key: 'difficult_access',    label: 'Difficult access' },
+        { key: 'large_waste_volume',  label: 'Large waste volume' },
+        { key: 'overgrown_neglected', label: 'Overgrown/neglected' },
+      ];
+    default:
+      return [
+        { key: 'older_property',        label: 'Older property' },
+        { key: 'no_existing_cable_run', label: 'No cable run' },
+        { key: 'multiple_floors',       label: 'Multiple floors' },
+      ];
+  }
+}
+
+function getExamplePhrases(trade: string | undefined | null): string[] {
+  switch ((trade ?? '').toLowerCase()) {
+    case 'gardener':
+      return [
+        '"Lawn mow and hedge trim at a semi in Manchester, standard urgency, customer Mrs Davies"',
+        '"Full garden clearance of overgrown back garden, new build, customer Mr Patel"',
+        '"Lay turf in front garden, roughly 30 square metres, next day, customer Sarah Jones"',
+      ];
+    default:
+      return [
+        '"Replace consumer unit at a 3-bed semi in Salford, standard urgency, customer is Mrs Davies"',
+        '"Fit two double sockets in a new build flat, urgency next day"',
+        '"Full rewire of old Victorian property, complex job, customer John Smith"',
+      ];
+  }
+}
 
 // ─── SpeechRecognition compat shim ────────────────────────────────────────────
 
@@ -330,6 +359,7 @@ export default function DitatePage() {
             availableJobs={phase.availableJobs}
             fieldSources={phase.fieldSources}
             traderPostcode={trader?.postcode ?? null}
+            traderTrade={trader?.trade ?? null}
             inputMode={inputMode}
             onConfirm={confirmQuote}
             onRetry={() => setPhase({ kind: 'idle' })}
@@ -428,11 +458,7 @@ export default function DitatePage() {
         {phase.kind === 'idle' && (
           <div className="space-y-2">
             <p className="text-xs text-gray-400 text-center font-medium uppercase tracking-wide">Example phrases</p>
-            {[
-              '"Replace consumer unit at a 3-bed semi in Salford, standard urgency, customer is Mrs Davies"',
-              '"Fit two double sockets in a new build flat, urgency next day"',
-              '"Full rewire of old Victorian property, complex job, customer John Smith"',
-            ].map((phrase, i) => (
+            {getExamplePhrases(trader?.trade).map((phrase, i) => (
               <div key={i} className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 italic">
                 {phrase}
               </div>
@@ -460,6 +486,7 @@ function ConfirmationCard({
   availableJobs,
   fieldSources,
   traderPostcode,
+  traderTrade,
   inputMode,
   onConfirm,
   onRetry,
@@ -468,6 +495,7 @@ function ConfirmationCard({
   availableJobs: AvailableJob[];
   fieldSources: FieldSources;
   traderPostcode: string | null;
+  traderTrade: string | null;
   inputMode: 'voice' | 'text';
   onConfirm: (fields: ExtractedFields) => void;
   onRetry: () => void;
@@ -693,7 +721,7 @@ function ConfirmationCard({
       <div className="space-y-1.5">
         <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Complexity</label>
         <div className="flex flex-wrap gap-2">
-          {COMPLEXITY_OPTIONS.map(({ key, label }) => {
+          {getComplexityOptions(traderTrade).map(({ key, label }) => {
             const active = fields.complexityFlags.includes(key);
             return (
               <button

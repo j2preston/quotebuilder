@@ -99,6 +99,19 @@ function rowToJobEntry(row: any, materials: any[]): JobLibraryEntry {
 
 const anthropic = new Anthropic();
 
+// ─── Complexity flags per trade ───────────────────────────────────────────────
+
+function complexityFlagsForTrade(trade: string): string {
+  switch (trade.toLowerCase()) {
+    case 'gardener':
+      return 'steep_sloped_garden|difficult_access|large_waste_volume|overgrown_neglected';
+    case 'plumber':
+      return 'older_property|no_existing_pipework|multiple_floors';
+    default:
+      return 'older_property|no_existing_cable_run|multiple_floors';
+  }
+}
+
 // ─── Step 1: Extract structured fields from transcript ────────────────────────
 
 export async function extractQuoteFields(
@@ -153,6 +166,8 @@ export async function extractQuoteFields(
       }).join('\n')
     : '(none)';
 
+  const complexityFlags = complexityFlagsForTrade(trader.trade);
+
   const extractionSystem =
     `${trader.name} (${trader.trade}, ${trader.location}). Return JSON only:\n` +
     `{\n` +
@@ -160,7 +175,7 @@ export async function extractQuoteFields(
     `"propertyType":"",  // house|flat_ground|flat_upper|commercial|new_build\n` +
     `"urgency":"",       // standard|next_day|same_day\n` +
     `"distanceMiles":0,  // 0 if not mentioned\n` +
-    `"complexityFlags":[], // older_property|no_existing_cable_run|multiple_floors\n` +
+    `"complexityFlags":[], // ${complexityFlags}\n` +
     `"customerName":"",\n` +
     `"notes":"",\n` +
     `"includeCallOut":false, // true=first visit\n` +

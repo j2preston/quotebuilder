@@ -280,3 +280,42 @@ JOIN (VALUES
 ) AS m(job_key, item, cost) ON m.job_key = t.job_key
 WHERE t.trade = 'Gas Engineer'
 ON CONFLICT DO NOTHING;
+
+-- ─── Seed: master job templates for Gardener ─────────────────────────────────
+
+INSERT INTO master_job_templates (trade, job_key, label, labour_hours) VALUES
+  ('Gardener', 'lawn_mowing',       'Lawn Mowing',                    0.5),
+  ('Gardener', 'hedge_trimming',    'Hedge Trimming',                  1.0),
+  ('Gardener', 'tree_pruning',      'Tree Pruning',                    2.0),
+  ('Gardener', 'garden_clearance',  'Garden Clearance',                3.0),
+  ('Gardener', 'turf_laying',       'Turf Laying',                     4.0),
+  ('Gardener', 'planting_beds',     'Planting & Bed Preparation',      2.0),
+  ('Gardener', 'fencing_panel',     'Fence Panel Replacement',         1.5),
+  ('Gardener', 'jet_washing',       'Jet Washing (Patio / Path)',      1.5),
+  ('Gardener', 'weeding',           'Weeding (per visit)',             1.0),
+  ('Gardener', 'gravel_laying',     'Gravel Laying',                   2.0),
+  ('Gardener', 'bark_mulching',     'Bark Mulching',                   1.0),
+  ('Gardener', 'landscaping',       'Landscaping Project',             8.0)
+ON CONFLICT (trade, job_key) DO NOTHING;
+
+-- Default materials for common gardener jobs
+INSERT INTO master_job_materials (template_id, item, cost)
+SELECT t.id, m.item, m.cost
+FROM master_job_templates t
+JOIN (VALUES
+  ('turf_laying',      'Turf (per m²)',               4.50),
+  ('turf_laying',      'Topsoil (per bag)',            8.00),
+  ('turf_laying',      'Lawn feed',                  12.00),
+  ('fencing_panel',    'Fence panel',                35.00),
+  ('fencing_panel',    'Fence post',                 12.00),
+  ('fencing_panel',    'Post mix (per bag)',           8.00),
+  ('fencing_panel',    'Gravel board',               15.00),
+  ('gravel_laying',    'Decorative gravel (per bag)',  6.00),
+  ('gravel_laying',    'Weed membrane (per m²)',       1.50),
+  ('bark_mulching',    'Bark chippings (per bag)',     8.00),
+  ('planting_beds',    'Compost (per bag)',            6.00),
+  ('planting_beds',    'Topsoil (per bag)',            8.00),
+  ('jet_washing',      'Patio cleaner solution',      12.00)
+) AS m(job_key, item, cost) ON m.job_key = t.job_key
+WHERE t.trade = 'Gardener'
+ON CONFLICT DO NOTHING;
